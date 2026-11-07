@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +26,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,24 +45,36 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.adgjmptw2.diet.R
 import io.github.adgjmptw2.diet.data.ProfileRepository
+import io.github.adgjmptw2.diet.data.auth.AccountType
+import io.github.adgjmptw2.diet.data.auth.AuthRepository
 import io.github.adgjmptw2.diet.ui.home.HomeScreen
 import io.github.adgjmptw2.diet.ui.meals.MealsScreen
 import io.github.adgjmptw2.diet.ui.onboarding.OnboardingScreen
 import io.github.adgjmptw2.diet.ui.progress.ProgressScreen
 import io.github.adgjmptw2.diet.ui.records.RecordsScreen
+import io.github.adgjmptw2.diet.ui.settings.SettingsScreen
+import io.github.adgjmptw2.diet.ui.welcome.WelcomeScreen
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class RootState { LOADING, NEEDS_SETUP, READY }
+enum class RootState { LOADING, WELCOME, NEEDS_SETUP, READY }
 
 @HiltViewModel
-class RootViewModel @Inject constructor(repo: ProfileRepository) : ViewModel() {
-    val state: StateFlow<RootState> = repo.profile
-        .map { if (it == null) RootState.NEEDS_SETUP else RootState.READY }
+class RootViewModel @Inject constructor(repo: ProfileRepository, auth: AuthRepository) : ViewModel() {
+    val state: StateFlow<RootState> = combine(repo.profile, auth.state) { profile, account ->
+        when {
+            account.signingIn -> RootState.LOADING
+            profile != null -> RootState.READY
+            account.account == null -> RootState.WELCOME
+            account.account == AccountType.GOOGLE &&
+                (account.initialSyncPending || account.needsReauthentication) -> RootState.WELCOME
+            else -> RootState.NEEDS_SETUP
+        }
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RootState.LOADING)
 }
 
@@ -68,15 +82,26 @@ class RootViewModel @Inject constructor(repo: ProfileRepository) : ViewModel() {
 fun AppRoot(vm: RootViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     var editingProfile by rememberSaveable { mutableStateOf(false) }
+    var showingSettings by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(state) {
+        if (state == RootState.WELCOME || state == RootState.NEEDS_SETUP) {
+            editingProfile = false
+            showingSettings = false
+        }
+    }
 
     when (state) {
-        RootState.LOADING -> Box(Modifier.fillMaxSize())
+        RootState.LOADING -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        RootState.WELCOME -> WelcomeScreen()
         RootState.NEEDS_SETUP -> OnboardingScreen(isEdit = false, onClose = {})
         RootState.READY -> if (editingProfile) {
             BackHandler { editingProfile = false }
             OnboardingScreen(isEdit = true, onClose = { editingProfile = false })
+        } else if (showingSettings) {
+            SettingsScreen(onClose = { showingSettings = false }, onEditProfile = { editingProfile = true })
         } else {
-            MainScaffold(onEditProfile = { editingProfile = true })
+            MainScaffold(onEditProfile = { showingSettings = true })
         }
     }
 }

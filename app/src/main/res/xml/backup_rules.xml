@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="database" path="." />
+    <include domain="file" path="." />
+    <exclude domain="file" path="datastore/auth.preferences_pb" />
+    <!-- AndroidKeyStore keys are system-managed and never included in app backup. -->
+</full-backup-content>

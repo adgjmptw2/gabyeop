@@ -161,7 +161,7 @@ private fun Header(s: HomeUiState, onEditProfile: () -> Unit) {
             )
         }
         IconButton(onClick = onEditProfile) {
-            Icon(painterResource(R.drawable.ic_edit), contentDescription = "내 정보 수정")
+            Icon(painterResource(R.drawable.ic_settings), contentDescription = "설정")
         }
     }
 }
