@@ -1,5 +1,7 @@
 package io.github.adgjmptw2.diet.domain
 
+import kotlin.math.roundToLong
+
 data class GoalProgress(
     val currentKg: Double,
     val lostKg: Double,
@@ -11,20 +13,25 @@ data class GoalProgress(
 
 object Goal {
     fun progress(startKg: Double, targetKg: Double, currentKg: Double): GoalProgress {
-        val total = startKg - targetKg
-        val lost = startKg - currentKg
-        val reached = currentKg <= targetKg
-        val ratio = when {
-            reached -> 1.0
-            total <= 0.0 -> 0.0
-            else -> (lost / total).coerceIn(0.0, 1.0)
+        val start = startKg.toTenths()
+        val target = targetKg.toTenths()
+        val current = currentKg.toTenths()
+        val total = start - target
+        val lost = start - current
+        val reached = current <= target
+        val percent = when {
+            reached -> 100
+            total <= 0L -> 0
+            else -> (lost * 100 / total).coerceIn(0L, 99L).toInt()
         }
         return GoalProgress(
             currentKg = currentKg,
-            lostKg = lost,
-            remainingKg = (currentKg - targetKg).coerceAtLeast(0.0),
-            percent = (ratio * 100).toInt(),
+            lostKg = lost / 10.0,
+            remainingKg = (current - target).coerceAtLeast(0L) / 10.0,
+            percent = percent,
             reached = reached,
         )
     }
+
+    private fun Double.toTenths(): Long = (this * 10).roundToLong()
 }

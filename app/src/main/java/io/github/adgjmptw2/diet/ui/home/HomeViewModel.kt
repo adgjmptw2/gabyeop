@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.math.roundToLong
 import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
@@ -80,7 +81,7 @@ class HomeViewModel @Inject constructor(
             val current = entries.firstOrNull()?.weightKg ?: profile.startWeightKg
             val progress = Goal.progress(profile.startWeightKg, profile.targetWeightKg, current)
             val recent = entries.take(RECENT_COUNT).mapIndexed { i, e ->
-                RecentRow(e, entries.getOrNull(i + 1)?.let { e.weightKg - it.weightKg })
+                RecentRow(e, entries.getOrNull(i + 1)?.let { weightDiffKg(e.weightKg, it.weightKg) })
             }
             return HomeUiState(
                 today = today,
@@ -93,5 +94,8 @@ class HomeViewModel @Inject constructor(
                 todayKcal = todayKcal,
             )
         }
+
+        private fun weightDiffKg(newerKg: Double, olderKg: Double): Double =
+            ((newerKg - olderKg) * 10).roundToLong() / 10.0
     }
 }
