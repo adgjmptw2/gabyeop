@@ -18,6 +18,12 @@ fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"")
         .replace("\n", "\\n").replace("\r", "\\r") + "\""
 
+// 서명 키는 저장소 밖(D:/diet-app-keys)에 둔다. 경로는 local.properties의 diet.keystoreProperties로 바꿀 수 있음
+val signingProps = Properties().apply {
+    val f = file(dietConfig("diet.keystoreProperties").ifEmpty { "D:/diet-app-keys/keystore.properties" })
+    if (f.isFile) f.inputStream().use { load(it) }
+}
+
 android {
     namespace = "io.github.adgjmptw2.diet"
     compileSdk = 37
@@ -27,14 +33,27 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
         buildConfigField("String", "API_BASE_URL", buildConfigString(dietConfig("diet.apiBaseUrl")))
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", buildConfigString(dietConfig("diet.googleWebClientId")))
+    }
+
+    signingConfigs {
+        if (signingProps.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = file(signingProps.getProperty("storeFile"))
+                storePassword = signingProps.getProperty("storePassword")
+                keyAlias = signingProps.getProperty("keyAlias")
+                keyPassword = signingProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
