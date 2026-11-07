@@ -46,6 +46,8 @@ import io.github.adgjmptw2.diet.data.ProfileRepository
 import io.github.adgjmptw2.diet.ui.home.HomeScreen
 import io.github.adgjmptw2.diet.ui.meals.MealsScreen
 import io.github.adgjmptw2.diet.ui.onboarding.OnboardingScreen
+import io.github.adgjmptw2.diet.ui.progress.ProgressScreen
+import io.github.adgjmptw2.diet.ui.records.RecordsScreen
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -133,8 +135,8 @@ private fun MainScaffold(onEditProfile: () -> Unit) {
         ) { page ->
             when (tabs[page]) {
                 Tab.HOME -> HomeScreen(onEditProfile = onEditProfile)
-                Tab.RECORDS -> ComingSoon("주간 기록", "주마다 몇 kg 빠졌는지, 그 주 식단", Tab.RECORDS.icon)
-                Tab.PROGRESS -> ComingSoon("성과", "체중 곡선, 배지", Tab.PROGRESS.icon)
+                Tab.RECORDS -> RecordsScreen(isActive = pager.currentPage == page)
+                Tab.PROGRESS -> ProgressScreen()
                 Tab.MEALS -> MealsScreen()
             }
         }
