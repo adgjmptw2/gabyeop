@@ -22,6 +22,7 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -49,6 +50,7 @@ import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
 import io.github.adgjmptw2.diet.ui.theme.GainColor
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
+import kotlin.math.roundToInt
 
 /** 다이얼로그 상태: 새 기록이면 entry = null */
 private data class Editing(val entry: WeightEntry?)
@@ -265,6 +267,15 @@ private fun CalorieCard(s: HomeUiState) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("하루 목표 칼로리", style = MaterialTheme.typography.titleMedium)
             Text("${c.target.comma()} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
+            Text(
+                "오늘 먹은 양 ${s.todayKcal.roundToInt().comma()} / 목표 ${c.target.comma()} kcal",
+                style = MaterialTheme.typography.bodySmall.tabularNumbers(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LinearProgressIndicator(
+                progress = { if (c.target > 0) (s.todayKcal / c.target).toFloat().coerceIn(0f, 1f) else 0f },
+                modifier = Modifier.fillMaxWidth(),
+            )
             Text(
                 "기초대사량 ${c.bmr.comma()} · 활동 포함 ${c.tdee.comma()}",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(),

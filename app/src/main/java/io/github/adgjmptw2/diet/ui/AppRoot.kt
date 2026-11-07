@@ -44,6 +44,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.adgjmptw2.diet.R
 import io.github.adgjmptw2.diet.data.ProfileRepository
 import io.github.adgjmptw2.diet.ui.home.HomeScreen
+import io.github.adgjmptw2.diet.ui.meals.MealsScreen
 import io.github.adgjmptw2.diet.ui.onboarding.OnboardingScreen
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -134,7 +135,7 @@ private fun MainScaffold(onEditProfile: () -> Unit) {
                 Tab.HOME -> HomeScreen(onEditProfile = onEditProfile)
                 Tab.RECORDS -> ComingSoon("주간 기록", "주마다 몇 kg 빠졌는지, 그 주 식단", Tab.RECORDS.icon)
                 Tab.PROGRESS -> ComingSoon("성과", "체중 곡선, 배지", Tab.PROGRESS.icon)
-                Tab.MEALS -> ComingSoon("식단", "식단 기록, 칼로리 계산", Tab.MEALS.icon)
+                Tab.MEALS -> MealsScreen()
             }
         }
     }
