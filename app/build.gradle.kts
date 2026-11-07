@@ -1,10 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.room)
+    alias(libs.plugins.kotlin.serialization)
 }
+
+val dietLocalProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
+}
+fun dietConfig(name: String): String =
+    (providers.gradleProperty(name).orNull ?: dietLocalProperties.getProperty(name).orEmpty()).trim()
+fun buildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"")
+        .replace("\n", "\\n").replace("\r", "\\r") + "\""
 
 android {
     namespace = "io.github.adgjmptw2.diet"
@@ -16,6 +28,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "API_BASE_URL", buildConfigString(dietConfig("diet.apiBaseUrl")))
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", buildConfigString(dietConfig("diet.googleWebClientId")))
     }
 
     buildTypes {
@@ -32,6 +46,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -61,4 +76,14 @@ dependencies {
     ksp(libs.room.compiler)
 
     testImplementation(libs.junit)
+
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play)
+    implementation(libs.googleid)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
+    implementation(libs.androidx.datastore.preferences)
 }

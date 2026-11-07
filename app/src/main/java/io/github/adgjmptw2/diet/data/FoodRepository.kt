@@ -26,6 +26,9 @@ class FoodRepository @Inject constructor(
     private val importLock = Mutex()
     @Volatile private var ready = false
 
+    /** Account data removal also clears Room's bundled food rows. */
+    internal suspend fun resetImportState() = importLock.withLock { ready = false }
+
     suspend fun ensureImported() {
         if (ready) return
         importLock.withLock {

@@ -42,6 +42,12 @@ data class WeightEntryEntity(
 @Dao
 interface ProfileDao {
     @Query("SELECT * FROM profile WHERE id = 0")
+    suspend fun current(): ProfileEntity?
+
+    @Query("SELECT * FROM profile WHERE id = 0 AND updatedAt > :since")
+    suspend fun changedSince(since: Long): ProfileEntity?
+
+    @Query("SELECT * FROM profile WHERE id = 0")
     fun observe(): Flow<ProfileEntity?>
 
     @Upsert
@@ -50,6 +56,18 @@ interface ProfileDao {
 
 @Dao
 interface WeightDao {
+    @Query("SELECT * FROM weight_entry WHERE updatedAt > :since ORDER BY updatedAt, id")
+    suspend fun changedSince(since: Long): List<WeightEntryEntity>
+
+    @Query("SELECT * FROM weight_entry WHERE id = :id LIMIT 1")
+    suspend fun byId(id: String): WeightEntryEntity?
+
+    @Query("DELETE FROM weight_entry WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("SELECT * FROM weight_entry WHERE deleted = 0 ORDER BY epochDay")
+    suspend fun exportRows(): List<WeightEntryEntity>
+
     @Query("SELECT * FROM weight_entry WHERE deleted = 0 ORDER BY epochDay DESC")
     fun observeAll(): Flow<List<WeightEntryEntity>>
 

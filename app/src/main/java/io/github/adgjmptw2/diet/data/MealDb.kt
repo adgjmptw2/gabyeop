@@ -83,6 +83,12 @@ interface FoodDao {
 
 @Dao
 interface MealDao {
+    @Query("SELECT * FROM meal_entry WHERE updatedAt > :since ORDER BY updatedAt, id")
+    suspend fun changedSince(since: Long): List<MealEntryEntity>
+
+    @Query("SELECT * FROM meal_entry WHERE deleted = 0 ORDER BY epochDay, createdAt")
+    suspend fun exportRows(): List<MealEntryEntity>
+
     @Query("SELECT * FROM meal_entry WHERE deleted = 0 AND epochDay = :epochDay ORDER BY createdAt")
     fun observeDay(epochDay: Long): Flow<List<MealEntryEntity>>
 
