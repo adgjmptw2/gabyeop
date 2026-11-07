@@ -1,0 +1,12 @@
+name = "gabyeop-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[vars]
+GOOGLE_WEB_CLIENT_ID = ""
+CONTACT_EMAIL = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gabyeop"
+database_id = "REPLACE_ME"
