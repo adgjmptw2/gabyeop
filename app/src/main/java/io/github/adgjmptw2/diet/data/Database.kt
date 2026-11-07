@@ -1,5 +1,6 @@
 package io.github.adgjmptw2.diet.data
 
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -63,8 +64,15 @@ interface WeightDao {
     suspend fun markDeleted(id: String, now: Long)
 }
 
-@Database(entities = [ProfileEntity::class, WeightEntryEntity::class], version = 1, exportSchema = true)
+@Database(
+    entities = [ProfileEntity::class, WeightEntryEntity::class, FoodEntity::class, MealEntryEntity::class],
+    version = 2,
+    exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
+)
 abstract class DietDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun weightDao(): WeightDao
+    abstract fun foodDao(): FoodDao
+    abstract fun mealDao(): MealDao
 }
