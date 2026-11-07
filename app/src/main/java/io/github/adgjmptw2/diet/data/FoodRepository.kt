@@ -78,7 +78,7 @@ class FoodRepository @Inject constructor(
         }
 
     companion object {
-        const val ASSET = "foods.tsv.gz"
+        const val ASSET = "foods.tsv.gzbin" // .gz 이면 AGP가 풀어서 이름이 바뀜
 
         /** id, 이름, 업체, 대분류, 대표식품, kcal/100, 탄/100, 단/100, 지/100, 1회 제공량, 단위 */
         fun parse(line: String): FoodEntity? {

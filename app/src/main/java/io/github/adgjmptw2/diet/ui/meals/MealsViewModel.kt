@@ -180,6 +180,7 @@ class MealsViewModel @Inject constructor(
                 importing.value = ImportState(preparing = false)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                android.util.Log.e("DietFoods", "food import failed", e)
                 importing.value = ImportState(preparing = false, error = "음식 목록을 준비하지 못했어요")
             }
         }

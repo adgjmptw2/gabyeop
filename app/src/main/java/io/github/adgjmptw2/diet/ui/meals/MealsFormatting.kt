@@ -9,6 +9,9 @@ internal fun Double.mealNumber(): String = NumberFormat.getNumberInstance(Locale
     maximumFractionDigits = 1
 }.format(this)
 
+/** kcal은 정수로 (1,277 kcal) */
+internal fun Double.kcalText(): String = NumberFormat.getIntegerInstance(Locale.KOREA).format(Math.round(this))
+
 internal fun Double.amountText(): String = BigDecimal.valueOf(this)
     .setScale(3, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
 

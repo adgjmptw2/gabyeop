@@ -1,7 +1,7 @@
 """식약처 '전국통합식품영양성분정보(음식)표준데이터'를 받아 앱 자산(foods.tsv.gz)으로 만든다.
 
 출처: https://www.data.go.kr/data/15100070/standard.do (식품의약품안전처, 공공데이터포털)
-사용: python -I tools/build_foods.py  → app/src/main/assets/foods.tsv.gz
+사용: python -I tools/build_foods.py  → app/src/main/assets/foods.tsv.gzbin (AGP가 .gz 자산을 풀어버려서 확장자를 바꿈)
 열: id, 이름, 업체(없으면 빈칸), 대분류, 대표식품, kcal/100, 탄수/100, 단백/100, 지방/100, 1회 제공량, 단위(g|ml)
 """
 import gzip
@@ -15,7 +15,7 @@ from pathlib import Path
 PK = "15100070"
 UA = {"User-Agent": "Mozilla/5.0"}
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "app/src/main/assets/foods.tsv.gz"
+OUT = ROOT / "app/src/main/assets/foods.tsv.gzbin"
 
 
 def get(url):
@@ -52,6 +52,14 @@ def fmt(v):
     return "" if v is None else (f"{v:.1f}".rstrip("0").rstrip("."))
 
 
+def display_name(raw):
+    """'홍차_홍차 아이스' → '홍차 아이스', '피자_불고기피자 (L)' → '불고기피자 (L)', '커피_큐브 아이스' → '커피 큐브 아이스'"""
+    if "_" not in raw:
+        return clean(raw)
+    head, rest = (clean(x) for x in raw.split("_", 1))
+    return rest if head and head in rest else clean(f"{head} {rest}")
+
+
 def clean(s):
     return re.sub(r"\s+", " ", str(s).replace("\t", " ")).strip()
 
@@ -77,7 +85,7 @@ def main():
         serving, unit = (num(m.group(1)), m.group(2).lower()) if m else (100.0, "g")
         base_unit = "ml" if "ml" in r["NUT_CON_SRTR_QUA"] else "g"
         brand = "" if r["REST_NM"] in ("해당없음", "", None) else clean(r["REST_NM"])
-        name = clean(r["FOOD_NM"].replace("_", " "))
+        name = display_name(r["FOOD_NM"])
         if (name, brand) in seen:
             skipped += 1
             continue

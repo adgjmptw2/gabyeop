@@ -116,7 +116,7 @@ internal fun AddFoodSheet(draft: MealEditorState, query: String, search: FoodSea
                     item {
                         val macro = draft.nutrition
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("${macro?.kcal?.mealNumber() ?: "—"} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
+                            Text("${macro?.kcal?.kcalText() ?: "—"} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 MacroLabel("탄수화물", macro?.carb, Modifier.weight(1f))
                                 MacroLabel("단백질", macro?.prot, Modifier.weight(1f))
@@ -219,7 +219,7 @@ private fun FoodResult(food: Food, onClick: () -> Unit) {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                "1회 ${food.serving.mealNumber()}${food.unit} · ${Nutrition.forAmount(food, food.serving).kcal.mealNumber()} kcal",
+                "1회 ${food.serving.mealNumber()}${food.unit} · ${Nutrition.forAmount(food, food.serving).kcal.kcalText()} kcal",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

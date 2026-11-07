@@ -114,7 +114,7 @@ private fun NutritionCard(state: MealsUiState) {
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (state.date == state.today) "오늘 먹은 양" else "먹은 양", style = MaterialTheme.typography.titleMedium)
-            Text("${state.total.kcal.mealNumber()} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
+            Text("${state.total.kcal.kcalText()} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
             Text(
                 "목표 ${state.targetKcal?.comma() ?: "—"} kcal",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -156,7 +156,7 @@ private fun MealCard(type: MealType, entries: List<MealEntry>, onAdd: () -> Unit
         ) {
             Text(type.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             if (entries.isNotEmpty()) {
-                Text("${entries.sumOf { it.kcal }.mealNumber()} kcal", style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${entries.sumOf { it.kcal }.kcalText()} kcal", style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             TextButton(onClick = onAdd) { Text("추가") }
         }
@@ -182,7 +182,7 @@ private fun MealRow(entry: MealEntry, onClick: () -> Unit) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                "${entry.amount.mealNumber()}${entry.unit} · ${entry.kcal.mealNumber()} kcal",
+                "${entry.amount.mealNumber()}${entry.unit} · ${entry.kcal.kcalText()} kcal",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
