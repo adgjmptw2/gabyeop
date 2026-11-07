@@ -3,9 +3,13 @@ package io.github.adgjmptw2.diet.ui.home
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -20,11 +24,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.adgjmptw2.diet.domain.WeightRules
 import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.common.kg
+import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.time.LocalDate
 
 private const val DAY_MS = 86_400_000L
@@ -50,17 +56,34 @@ fun WeightDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp,
         title = { Text(if (initialKg == null) "체중 기록" else "기록 수정") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { picking = true }, enabled = !dateLocked) {
-                    Text(date.format(DayLabel))
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedButton(
+                    onClick = { picking = true },
+                    enabled = !dateLocked,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = MaterialTheme.shapes.small,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                ) {
+                    Text(date.format(DayLabel), style = MaterialTheme.typography.bodyMedium.tabularNumbers())
                 }
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(6) },
                     label = { Text("체중") },
                     suffix = { Text("kg") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    textStyle = MaterialTheme.typography.headlineMedium.tabularNumbers(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = tried && parsed == null,
@@ -74,23 +97,31 @@ fun WeightDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                tried = true
-                parsed?.let { onSave(date, it) }
-            }) { Text("저장") }
+            TextButton(
+                onClick = {
+                    tried = true
+                    parsed?.let { onSave(date, it) }
+                },
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text("저장") }
         },
         dismissButton = {
-            Row {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (onDelete != null) {
-                    TextButton(onClick = onDelete) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) { Text("삭제") }
                 }
-                TextButton(onClick = onDismiss) { Text("취소") }
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") }
             }
         },
     )
 
     if (picking) {
         val todayMs = today.toEpochDay() * DAY_MS
+        val pickerColors = DatePickerDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
         val picker = rememberDatePickerState(
             initialSelectedDateMillis = epochDay * DAY_MS,
             selectableDates = object : SelectableDates {
@@ -100,15 +131,23 @@ fun WeightDialog(
         )
         DatePickerDialog(
             onDismissRequest = { picking = false },
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 0.dp,
+            colors = pickerColors,
             confirmButton = {
-                TextButton(onClick = {
-                    picker.selectedDateMillis?.let { epochDay = it / DAY_MS }
-                    picking = false
-                }) { Text("확인") }
+                TextButton(
+                    onClick = {
+                        picker.selectedDateMillis?.let { epochDay = it / DAY_MS }
+                        picking = false
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text("확인") }
             },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text("취소") } },
+            dismissButton = {
+                TextButton(onClick = { picking = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") }
+            },
         ) {
-            DatePicker(picker)
+            DatePicker(picker, colors = pickerColors)
         }
     }
 }

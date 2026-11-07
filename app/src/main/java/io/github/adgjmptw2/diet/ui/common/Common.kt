@@ -11,12 +11,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -40,24 +45,29 @@ fun ProgressRing(
     percent: Int,
     modifier: Modifier = Modifier,
     size: Dp = 128.dp,
-    stroke: Dp = 12.dp,
+    stroke: Dp = 8.dp,
     color: Color = MaterialTheme.colorScheme.primary,
     track: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
 ) {
-    val sweep by animateFloatAsState(percent / 100f, tween(700), label = "ring")
-    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+    val progress = percent.coerceIn(0, 100)
+    val sweep by animateFloatAsState(progress / 100f, tween(700), label = "ring")
+    Box(
+        modifier.size(size).clearAndSetSemantics {
+            progressBarRangeInfo = ProgressBarRangeInfo(progress / 100f, 0f..1f)
+        },
+        contentAlignment = Alignment.Center,
+    ) {
         Canvas(Modifier.size(size)) {
             val s = Stroke(stroke.toPx(), cap = StrokeCap.Round)
             val inset = stroke.toPx() / 2
-            val arcSize = androidx.compose.ui.geometry.Size(this.size.width - inset * 2, this.size.height - inset * 2)
-            val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+            val arcSize = Size(this.size.width - inset * 2, this.size.height - inset * 2)
+            val topLeft = Offset(inset, inset)
             drawArc(track, -90f, 360f, false, topLeft, arcSize, style = s)
             if (sweep > 0f) drawArc(color, -90f, 360f * sweep, false, topLeft, arcSize, style = s)
         }
         Text(
-            "$percent%",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
+            "$progress%",
+            style = MaterialTheme.typography.headlineMedium.tabularNumbers(),
         )
     }
 }
