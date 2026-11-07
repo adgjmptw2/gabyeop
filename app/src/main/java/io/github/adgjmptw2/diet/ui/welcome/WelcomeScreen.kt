@@ -62,7 +62,7 @@ class WelcomeViewModel @Inject constructor(
     }
 
     fun retrySync() = runAction {
-        if (!sync.sync()) message = "동기화가 남아 있어요. 다시 시도할 수 있어요"
+        if (!sync.sync()) message = "동기화가 남아 있어요. 다시 시도해 주세요"
     }
 
     private fun runAction(action: suspend () -> Unit) {
@@ -72,7 +72,7 @@ class WelcomeViewModel @Inject constructor(
         viewModelScope.launch {
             try { action() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { message = "연결하지 못했어요. 다시 시도할 수 있어요" }
+            catch (_: Exception) { message = "연결하지 못했어요. 다시 시도해 주세요" }
             finally { busy = false }
         }
     }

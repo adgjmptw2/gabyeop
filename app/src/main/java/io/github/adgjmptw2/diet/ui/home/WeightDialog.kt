@@ -89,8 +89,8 @@ fun WeightDialog(
                     isError = tried && parsed == null,
                     supportingText = {
                         when {
-                            tried && parsed == null -> Text("${WeightRules.MIN_KG.toInt()}~${WeightRules.MAX_KG.toInt()} kg 사이로 적어 주세요")
-                            !dateLocked && date in recordedDays -> Text("이 날짜 기록을 바꿔요")
+                            tried && parsed == null -> Text("${WeightRules.MIN_KG.toInt()}~${WeightRules.MAX_KG.toInt()} kg 사이로 입력해 주세요")
+                            !dateLocked && date in recordedDays -> Text("기존 기록을 수정해요")
                         }
                     },
                 )

@@ -130,7 +130,7 @@ private fun NutritionCard(state: MealsUiState) {
                 MacroLabel("지방", state.total.fat, Modifier.weight(1f))
             }
             if (state.entries.any { it.carb == null || it.prot == null || it.fat == null }) {
-                Text("영양정보가 있는 음식만 합산", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("영양정보가 있는 음식만 합산해요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

@@ -236,7 +236,7 @@ private fun GoalStats(s: HomeUiState, modifier: Modifier = Modifier) {
             Stat("시작보다", "+${p.lostKg.absKg()} kg", color = GainColor)
         }
         Stat(
-            "남은 무게", if (p.reached) "목표 달성" else "${p.remainingKg.kg()} kg",
+            "목표까지", if (p.reached) "목표 달성" else "${p.remainingKg.kg()} kg",
             color = if (p.reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         )
         Stat("목표", "${s.profile.targetWeightKg.kg()} kg")

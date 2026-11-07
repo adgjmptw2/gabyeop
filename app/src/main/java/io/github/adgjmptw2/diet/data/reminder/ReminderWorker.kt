@@ -56,7 +56,7 @@ class ReminderWorker @AssistedInject constructor(
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(R.drawable.ic_reminder)
             .setContentTitle("가볍게")
-            .setContentText("오늘 체중을 기록할 시간")
+            .setContentText("오늘 체중을 기록할 시간이에요")
             .setContentIntent(pendingIntent).setAutoCancel(true).build()
         try { NotificationManagerCompat.from(applicationContext).notify(REMINDER_ID, notification) }
         catch (_: SecurityException) { /* Permission may be revoked between the check and notify. */ }

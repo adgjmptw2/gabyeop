@@ -52,9 +52,9 @@ fun WeightChart(
     val points = remember(entries, from, to) { entries.filter { it.date in from..to }.sortedBy { it.date } }
     val summary = when (points.size) {
         0 -> "$periodLabel 체중 기록 없음"
-        1 -> "$periodLabel 체중 ${points.first().weightKg.kg()}kg, 기록 1개. 기록 2개부터 추이가 보여요"
-        else -> "$periodLabel ${points.first().weightKg.kg()}kg에서 ${points.last().weightKg.kg()}kg. " +
-            "체중 ${points.size}회 기록. 굵은 선은 7일 평균, 점선은 목표 ${targetKg.kg()}kg"
+        1 -> "$periodLabel 체중 ${points.first().weightKg.kg()} kg, 기록 1개. 기록 2개부터 추이가 보여요"
+        else -> "$periodLabel ${points.first().weightKg.kg()} kg에서 ${points.last().weightKg.kg()} kg. " +
+            "체중 ${points.size}회 기록. 굵은 선은 7일 평균, 점선은 목표 ${targetKg.kg()} kg"
     }
     if (points.size <= 1) {
         Box(
@@ -138,7 +138,7 @@ fun WeightChart(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChartLegend("실제 기록", pointColor, kind = 0, modifier = Modifier.weight(1f))
             ChartLegend("7일 평균", lineColor, kind = 1, modifier = Modifier.weight(1f))
-            ChartLegend("목표 ${targetKg.kg()}", targetColor, kind = 2, modifier = Modifier.weight(1f))
+            ChartLegend("목표 ${targetKg.kg()} kg", targetColor, kind = 2, modifier = Modifier.weight(1f))
         }
     }
 }

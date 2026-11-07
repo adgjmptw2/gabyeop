@@ -92,7 +92,7 @@ class SettingsViewModel @Inject constructor(
             try { block() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: LoginRequiredException) { message.value = "다시 로그인이 필요해요" }
-            catch (_: Exception) { message.value = "완료하지 못했어요. 다시 시도할 수 있어요" }
+            catch (_: Exception) { message.value = "완료하지 못했어요. 다시 시도해 주세요" }
             finally { busy.value = false }
         }
     }

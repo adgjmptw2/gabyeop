@@ -51,7 +51,7 @@ fun badges(
         BadgeState("first_record", "첫 기록", "첫 체중 기록", days.firstOrNull(), if (days.isEmpty()) 0.0 else 1.0),
         streakBadge(7, "streak_7"),
         streakBadge(30, "streak_30"),
-        lossBadge("loss_1kg", "첫 1kg 감량", "시작 체중에서 1kg 감량", 1.0),
+        lossBadge("loss_1kg", "첫 1 kg 감량", "시작 체중에서 1 kg 감량", 1.0),
         lossBadge("loss_5_percent", "5% 감량", "시작 체중의 5% 감량", profile.startWeightKg * 0.05),
         lossBadge("loss_10_percent", "10% 감량", "시작 체중의 10% 감량", profile.startWeightKg * 0.1),
         lossBadge("halfway", "목표 절반", "목표 감량의 절반 달성", goalLoss / 2),
@@ -59,6 +59,6 @@ fun badges(
             "goal", "목표 달성", "목표 체중에 도달",
             reachedOn, if (reachedOn != null) 1.0 else if (goalLoss > 0.0) (bestLoss / goalLoss).coerceIn(0.0, 1.0) else 0.0,
         ),
-        BadgeState("meals_7", "식단 7일 기록", "서로 다른 7일에 식단 기록", meals.getOrNull(6), (meals.size / 7.0).coerceIn(0.0, 1.0)),
+        BadgeState("meals_7", "식단 7일 기록", "총 7일 식단 기록", meals.getOrNull(6), (meals.size / 7.0).coerceIn(0.0, 1.0)),
     )
 }

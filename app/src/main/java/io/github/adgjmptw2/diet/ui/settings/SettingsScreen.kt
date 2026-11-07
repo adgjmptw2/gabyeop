@@ -117,7 +117,7 @@ fun SettingsScreen(onClose: () -> Unit, onEditProfile: () -> Unit, vm: SettingsV
                     }
                     if (vm.googleAvailable && (!google || state.account.needsReauthentication)) {
                         SettingsRow(if (google) "Google로 다시 로그인" else "Google 계정 연결",
-                            "연결하면 이 기기의 기록을 서버에 올려요", !state.busy) { dialog = AccountDialog.LINK }
+                            "연결하면 이 기기의 기록을 서버에 저장해요", !state.busy) { dialog = AccountDialog.LINK }
                     }
                     if (google) {
                         SettingsRow("로그아웃", enabled = !state.busy) { keepLocal = true; dialog = AccountDialog.LOGOUT }
@@ -129,7 +129,7 @@ fun SettingsScreen(onClose: () -> Unit, onEditProfile: () -> Unit, vm: SettingsV
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("기록 알림", style = MaterialTheme.typography.bodyLarge)
-                            Text("오늘 체중을 기록하지 않은 날에 알려요", style = MaterialTheme.typography.bodySmall,
+                            Text("오늘 체중을 기록하지 않았을 때 알려요", style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = state.reminder.enabled, enabled = !state.busy, onCheckedChange = { enabled ->
@@ -183,7 +183,7 @@ fun SettingsScreen(onClose: () -> Unit, onEditProfile: () -> Unit, vm: SettingsV
     when (dialog) {
         AccountDialog.LINK -> AlertDialog(onDismissRequest = { dialog = null },
             title = { Text("Google 계정 연결") },
-            text = { Text("연결하면 이 기기의 체중과 식단 기록을 서버에 올려요. 사진은 이 기기에 남아요") },
+            text = { Text("연결하면 이 기기의 체중과 식단 기록을 서버에 저장해요. 사진은 이 기기에 남아요") },
             confirmButton = { TextButton(onClick = { dialog = null; vm.signIn(context) }) { Text("연결") } },
             dismissButton = { TextButton(onClick = { dialog = null }) { Text("취소") } })
         AccountDialog.LOGOUT -> AlertDialog(onDismissRequest = { dialog = null },
