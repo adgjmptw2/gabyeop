@@ -52,15 +52,15 @@ object ProfileValidator {
         }
 
         val height = input.heightCm.trim().replace(',', '.').toDoubleOrNull()
-        if (height == null || !height.isFinite() || height !in 100.0..250.0) errors[Field.HEIGHT] = "키를 확인해 주세요 (cm)"
+        if (height == null || !height.isFinite() || height !in 100.0..250.0) errors[Field.HEIGHT] = "키를 확인해 주세요"
 
         val start = WeightRules.parse(input.startWeightKg)
-        if (start == null) errors[Field.START_WEIGHT] = "체중을 확인해 주세요 (kg)"
+        if (start == null) errors[Field.START_WEIGHT] = "시작 체중을 확인해 주세요"
 
         val target = WeightRules.parse(input.targetWeightKg)
         when {
-            target == null -> errors[Field.TARGET_WEIGHT] = "체중을 확인해 주세요 (kg)"
-            start != null && target >= start -> errors[Field.TARGET_WEIGHT] = "시작 체중보다 낮게 정해 주세요"
+            target == null -> errors[Field.TARGET_WEIGHT] = "목표 체중을 확인해 주세요"
+            start != null && target >= start -> errors[Field.TARGET_WEIGHT] = "시작 체중보다 낮게 입력해 주세요"
             height != null && Field.HEIGHT !in errors && bmi(target, height) < MIN_TARGET_BMI ->
                 errors[Field.TARGET_WEIGHT] = "목표 체중이 너무 낮아요"
         }
