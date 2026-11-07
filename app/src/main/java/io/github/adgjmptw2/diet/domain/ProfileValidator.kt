@@ -32,8 +32,8 @@ object WeightRules {
     /** "72,45" 같은 입력도 받고 소수 첫째 자리로 맞춤. 범위 밖이면 null */
     fun parse(text: String): Double? {
         val v = text.trim().replace(',', '.').toDoubleOrNull() ?: return null
-        val rounded = (v * 10).roundToInt() / 10.0
-        return rounded.takeIf { it in MIN_KG..MAX_KG }
+        if (!v.isFinite() || v !in MIN_KG..MAX_KG) return null
+        return (v * 10).roundToInt() / 10.0
     }
 }
 
@@ -52,7 +52,7 @@ object ProfileValidator {
         }
 
         val height = input.heightCm.trim().replace(',', '.').toDoubleOrNull()
-        if (height == null || height !in 100.0..250.0) errors[Field.HEIGHT] = "키를 확인해 주세요 (cm)"
+        if (height == null || !height.isFinite() || height !in 100.0..250.0) errors[Field.HEIGHT] = "키를 확인해 주세요 (cm)"
 
         val start = WeightRules.parse(input.startWeightKg)
         if (start == null) errors[Field.START_WEIGHT] = "체중을 확인해 주세요 (kg)"

@@ -23,12 +23,21 @@ class ProfileRepository @Inject constructor(
 
     val profile: Flow<Profile?> = dao.observe().map { it?.toDomain() }
 
-    suspend fun save(profile: Profile) = dao.upsert(profile.toEntity(clock.millis()))
+    suspend fun save(profile: Profile) {
+        db.withTransaction {
+            val previous = dao.current()
+            val saved = profile.toEntity(clock.millis())
+                .copy(startEpochDay = previous?.startEpochDay ?: profile.startDate.toEpochDay())
+            dao.upsert(saved)
+        }
+    }
 
     /** 처음 설정: 프로필과 시작 체중 기록을 한 번에 저장 */
     suspend fun createWithFirstWeight(profile: Profile) {
         db.withTransaction {
-            save(profile)
+            val saved = profile.toEntity(clock.millis())
+                .copy(startEpochDay = profile.startDate.toEpochDay())
+            dao.upsert(saved)
             weights.save(profile.startDate, profile.startWeightKg)
         }
     }
@@ -36,7 +45,7 @@ class ProfileRepository @Inject constructor(
 
 @Singleton
 class WeightRepository @Inject constructor(
-    db: DietDatabase,
+    private val db: DietDatabase,
     private val clock: Clock,
 ) {
     private val dao = db.weightDao()
@@ -45,17 +54,19 @@ class WeightRepository @Inject constructor(
     val entries: Flow<List<WeightEntry>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
 
     suspend fun save(date: LocalDate, weightKg: Double) {
-        val now = clock.millis()
-        val existing = dao.findByDay(date.toEpochDay())
-        val row = existing?.copy(weightKg = weightKg, updatedAt = now, deleted = false)
-            ?: WeightEntryEntity(
-                id = UUID.randomUUID().toString(),
-                epochDay = date.toEpochDay(),
-                weightKg = weightKg,
-                createdAt = now,
-                updatedAt = now,
-            )
-        dao.upsert(row)
+        db.withTransaction {
+            val now = clock.millis()
+            val existing = dao.findByDay(date.toEpochDay())
+            val row = existing?.copy(weightKg = weightKg, updatedAt = now, deleted = false)
+                ?: WeightEntryEntity(
+                    id = UUID.randomUUID().toString(),
+                    epochDay = date.toEpochDay(),
+                    weightKg = weightKg,
+                    createdAt = now,
+                    updatedAt = now,
+                )
+            dao.upsert(row)
+        }
     }
 
     suspend fun delete(id: String) = dao.markDeleted(id, clock.millis())
