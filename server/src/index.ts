@@ -2,7 +2,7 @@ import { deleteAccount, allowSync, cleanupRate, minutesSinceEpoch, upsertUser } 
 import { bearerToken, error, HttpError, json, noContent, readJsonObject } from "./http";
 import { verifyGoogleIdToken } from "./google";
 import { verifyAccessToken } from "./jwt";
-import { deletionPage, healthPage, privacyPage } from "./pages";
+import { deletionPage, healthPage, homePage, privacyPage } from "./pages";
 import { syncUser } from "./sync";
 import { D1TokenStore, issueSession, logoutSession, rotateSession, systemClock } from "./tokens";
 import type { Env } from "./types";
@@ -26,6 +26,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
+  if (request.method === "GET" && path === "/") return homePage();
   if (request.method === "GET" && path === "/health") return healthPage();
   if (request.method === "GET" && path === "/privacy") {
     return privacyPage(env.CONTACT_EMAIL);
@@ -45,7 +46,7 @@ async function route(request: Request, env: Env): Promise<Response> {
 }
 
 function knownPath(path: string): boolean {
-  return path === "/health" || path === "/privacy" || path === "/account-deletion" ||
+  return path === "/" || path === "/health" || path === "/privacy" || path === "/account-deletion" ||
     path === "/v1/auth/google" || path === "/v1/auth/refresh" || path === "/v1/auth/logout" ||
     path === "/v1/account" || path === "/v1/sync";
 }

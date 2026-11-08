@@ -58,6 +58,22 @@ export function deletionPage(contactEmail: string): Response {
   );
 }
 
+export function homePage(): Response {
+  return page(
+    "가볍게",
+    `<h1>가볍게</h1>
+<p>체중과 식단을 기록하고 목표까지 얼마나 왔는지 보는 안드로이드 앱입니다.</p>
+<ul>
+<li>현재 체중, 감량한 양, 목표까지 남은 무게와 진행률</li>
+<li>주마다 체중 변화와 그 주의 식단</li>
+<li>체중 곡선과 배지</li>
+<li>식약처 음식 영양성분 데이터로 칼로리 계산</li>
+</ul>
+<p>로그인 없이 쓸 수 있고, 원하면 구글 계정으로 백업·동기화할 수 있습니다.</p>
+<p><a href="/privacy">개인정보처리방침</a> · <a href="/account-deletion">계정 삭제</a></p>`,
+  );
+}
+
 export function healthPage(): Response {
   return new Response("ok", { status: 200, headers: { "content-type": "text/plain; charset=utf-8" } });
 }

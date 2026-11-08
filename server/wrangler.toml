@@ -3,10 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
 [vars]
-GOOGLE_WEB_CLIENT_ID = ""
-CONTACT_EMAIL = ""
+GOOGLE_WEB_CLIENT_ID = "288713548416-98a2e9n2g2jlip0jd4f3lmnhn058aisl.apps.googleusercontent.com"
+CONTACT_EMAIL = "rlawjdgus2900@gmail.com"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "gabyeop"
-database_id = "REPLACE_ME"
+database_id = "88c442e9-e1fd-4ad3-ba80-82c77bc4cf76"
