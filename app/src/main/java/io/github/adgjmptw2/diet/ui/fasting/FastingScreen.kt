@@ -91,7 +91,7 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
                 item { GoalChips(state.targetHours, vm::selectTarget, { editingGoal = true }) }
                 item { Button(onClick = start, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("단식 시작") } }
                 item { Text("최근 단식", style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth()) }
-                if (state.recent.isEmpty()) item { Text("아직 기록 없음", style = MaterialTheme.typography.bodyMedium,
+                if (state.recent.isEmpty()) item { Text("기록 없음", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth()) }
                 items(state.recent, key = { it.id }) { fast ->
                     val date = Instant.ofEpochMilli(fast.startAt).atZone(vm.zone()).toLocalDate()
@@ -118,7 +118,7 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
                     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         TimeCard("시작", started.toLocalDate(), started.format(timeLabel), { editingStart = true },
                             Modifier.weight(1f).fillMaxHeight())
-                        TimeCard("목표 종료", end.toLocalDate(), end.format(timeLabel), { editingGoal = true },
+                        TimeCard("목표 시각", end.toLocalDate(), end.format(timeLabel), { editingGoal = true },
                             Modifier.weight(1f).fillMaxHeight())
                     }
                 }
@@ -211,7 +211,7 @@ private fun GoalChips(hours: Int, onSelect: (Int) -> Unit, onCustom: (() -> Unit
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         listOf(14, 16, 18, 20).forEach { option ->
             FilterChip(selected = hours == option, onClick = { onSelect(option) },
-                label = { Text("$option", style = MaterialTheme.typography.labelMedium.tabularNumbers()) })
+                label = { Text("${option}시간", style = MaterialTheme.typography.labelMedium.tabularNumbers()) })
         }
         if (onCustom != null) FilterChip(selected = hours !in listOf(14, 16, 18, 20), onClick = onCustom,
             label = { Text(if (hours !in listOf(14, 16, 18, 20)) "${hours}시간" else "직접", style = MaterialTheme.typography.labelMedium.tabularNumbers()) })
@@ -241,7 +241,7 @@ private fun EditStartDialog(active: Fast, vm: TrackingViewModel, onDismiss: () -
     var offset by rememberSaveable(active.id, active.startAt) { mutableLongStateOf(0) }
     val date = start.toLocalDate().plusDays(offset)
     val context = LocalContext.current
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("단식 시작") }, text = {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("단식 시작 시각") }, text = {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { offset-- }, enabled = date > today.minusDays(7)) { Text("◀") }

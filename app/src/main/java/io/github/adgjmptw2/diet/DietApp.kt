@@ -33,11 +33,10 @@ class DietApp : Application(), Configuration.Provider {
         fastGoalScheduler.start()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             reminderScheduler.restore()
-            // 음식 정리와 catalog 복사는 서로 기다리지 않게 각각 시작한다.
-            launch { runCatching { foods.cleanupLegacyFoods() } }
-            launch { runCatching { foods.prepareCatalog() } }
+            // catalog 복사가 끝난 뒤에만 옛 기본 음식을 정리한다(복사 실패 시 옛 목록 유지).
+            launch { if (runCatching { foods.prepareCatalog() }.isSuccess) runCatching { foods.cleanupLegacyFoods() } }
             // 걸음 출처를 정하고, 센서 방식이면 15분 주기 기록도 함께 예약한다.
-            steps.sample()
+            runCatching { steps.sample() }
         }
     }
 }

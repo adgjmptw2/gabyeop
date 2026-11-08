@@ -20,8 +20,12 @@ enum class MacroPreset(val label: String, val carb: Int, val protein: Int, val f
     LOW_CARB("저탄수 25:35:40", 25, 35, 40),
 }
 
+/** 하루 목표 칼로리를 아직 모를 때 추천 g 계산 기준 */
+private const val FALLBACK_KCAL = 2000
+
 fun macroGoal(kcal: Int, preset: MacroPreset = MacroPreset.BALANCED): MacroGoal {
     require(kcal >= 0)
+    val kcal = if (kcal == 0) FALLBACK_KCAL else kcal
     return MacroGoal(
         (kcal.toDouble() * preset.carb / 100 / 4).roundToInt().coerceIn(0, 1000),
         (kcal.toDouble() * preset.protein / 100 / 4).roundToInt().coerceIn(0, 1000),

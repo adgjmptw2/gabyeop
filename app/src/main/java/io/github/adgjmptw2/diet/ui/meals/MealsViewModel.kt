@@ -289,8 +289,8 @@ class MealsViewModel @Inject constructor(
         importJob = viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    foods.cleanupLegacyFoods()
                     foods.prepareCatalog()
+                    foods.cleanupLegacyFoods()
                 }
                 importing.value = ImportState(preparing = false)
             } catch (e: Exception) {
@@ -667,7 +667,8 @@ class MealsViewModel @Inject constructor(
                     val food = if (draft.custom && draft.saveToCustomFoods) {
                         foods.createCustom(preview.toCustomDraft(), preview.favorite)
                     } else {
-                        foods.cache(preview)
+                        // 기존 식단 수정은 저장된 값으로 다시 만든 음식이라 캐시하지 않는다(제품 1개·1회 정보가 덮이지 않게)
+                        if (draft.original == null) foods.cache(preview)
                         preview
                     }
                     meals.save(MealEntry(

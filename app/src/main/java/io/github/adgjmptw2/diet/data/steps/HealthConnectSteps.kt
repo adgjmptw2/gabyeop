@@ -18,8 +18,9 @@ import javax.inject.Singleton
 class HealthConnectSteps @Inject constructor(@ApplicationContext private val context: Context) {
     val permission: String = HealthPermission.getReadPermission(StepsRecord::class)
 
-    fun available(): Boolean =
+    fun available(): Boolean = runCatching {
         HealthConnectClient.getSdkStatus(context, PROVIDER) == HealthConnectClient.SDK_AVAILABLE
+    }.getOrDefault(false)
 
     fun client(): HealthConnectClient? = runCatching {
         if (available()) HealthConnectClient.getOrCreate(context) else null

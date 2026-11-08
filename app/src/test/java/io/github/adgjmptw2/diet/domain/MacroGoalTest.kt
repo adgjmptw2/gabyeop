@@ -18,7 +18,8 @@ class MacroGoalTest {
         assertTrue(MacroGoal().isEmpty)
         assertFalse(MacroGoal(carbGrams = 0).isEmpty)
         assertEquals(400, MacroGoal(proteinGrams = 100).energyKcal)
-        assertEquals(MacroGoal(0, 0, 0), macroGoal(0, MacroPreset.BALANCED))
+        // 목표 칼로리를 모르면(0) 2000 kcal 기준으로 추천
+        assertEquals(macroGoal(2000, MacroPreset.BALANCED), macroGoal(0, MacroPreset.BALANCED))
     }
     @Test fun presetsStayInsideEditableRange() {
         MacroPreset.entries.forEach { preset ->

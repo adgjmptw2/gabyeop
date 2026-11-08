@@ -189,7 +189,7 @@ private fun TodayStepsCard(state: StepsUiState, onEditGoal: () -> Unit) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("오늘", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 IconButton(onClick = onEditGoal) {
-                    Icon(painterResource(R.drawable.ic_edit), contentDescription = "목표 바꾸기",
+                    Icon(painterResource(R.drawable.ic_edit), contentDescription = "목표 수정",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -313,11 +313,11 @@ private fun SourceLine(state: StepsUiState, onSettings: () -> Unit) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (state.source == StepsAvailability.SENSOR) {
-            Text("앱을 깐 뒤부터 세요", style = MaterialTheme.typography.bodySmall,
+            Text("앱을 설치한 뒤부터 세요", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         TextButton(onClick = onSettings, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            Text("설정")
+            Text("앱 설정 열기")
         }
     }
 }
@@ -338,7 +338,7 @@ private fun GoalDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Uni
                 suffix = { Text("걸음") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 isError = value == null || value !in 1000..50000,
-                supportingText = { Text("1,000 ~ 50,000") },
+                supportingText = { Text("1,000~50,000걸음") },
                 shape = MaterialTheme.shapes.small,
             )
         },

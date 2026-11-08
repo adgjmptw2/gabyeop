@@ -49,7 +49,7 @@ class StepCounterReader @Inject constructor(@ApplicationContext private val cont
 
     /**
      * 부팅 후 누적값의 차이를 날짜별 걸음에 더한다.
-     * 자정을 넘긴 짧은 공백은 이전 날에, 재부팅으로 누적값이 줄면 지금 값부터 다시 센다.
+     * 날짜가 바뀐 뒤의 차이는 오늘에, 재부팅으로 누적값이 줄면 지금 값부터 다시 센다.
      */
     suspend fun recordSample(store: StepsStore, repository: StepDayRepository, today: LocalDate) {
         val total = currentTotal() ?: return
@@ -69,7 +69,8 @@ class StepCounterReader @Inject constructor(@ApplicationContext private val cont
             if (baselineDay != today) store.setSensorBaseline(SensorBaseline(total, today.toEpochDay()))
             return
         }
-        val target = if (baselineDay == today.minusDays(1)) baselineDay else today
+        // 날짜가 바뀐 뒤 처음 읽은 차이는 오늘로 센다(밤새 작업이 미뤄지면 아침 걸음이 어제로 가는 것을 막음)
+        val target = today
         val existing = repository.range(target, target).firstOrNull()
         // Health Connect로 읽은 날에는 센서 차이를 더하지 않는다. 출처가 섞이면 수치가 부풀어 오른다.
         if (existing != null && existing.source != SOURCE) {

@@ -90,7 +90,8 @@ class StepsRepository @Inject constructor(
                 scheduler.cancel()
                 _source.value = StepsAvailability.HEALTH_CONNECT
             } else if (sensor.available && hasSensorPermission()) {
-                sensor.recordSample(store, stepDays, today)
+                // 권한이 막 철회되면 센서 등록이 SecurityException을 던질 수 있다
+                runCatching { sensor.recordSample(store, stepDays, today) }
                 store.setMode(StepMode.SENSOR)
                 store.setDenied(false)
                 scheduler.start()

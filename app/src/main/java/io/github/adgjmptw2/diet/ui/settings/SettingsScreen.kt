@@ -144,7 +144,7 @@ fun SettingsScreen(
                         !state.busy && state.records.recommendedKcal > 0) { dialog = AccountDialog.CALORIE }
                     val macroGoals = state.records.macroGoals.resolved(state.records.calorieTarget ?: state.records.recommendedKcal)
                     SettingsRow("영양정보 목표",
-                        "탄 ${macroGoals.carbGrams} · 지 ${macroGoals.fatGrams} · 단 ${macroGoals.proteinGrams} g",
+                        "탄수화물 ${macroGoals.carbGrams}g · 지방 ${macroGoals.fatGrams}g · 단백질 ${macroGoals.proteinGrams}g",
                         !state.busy && state.records.recommendedKcal > 0) { dialog = AccountDialog.MACROS }
                     SettingsRow("물", "한 잔 ${state.records.water.glassMl} ml · " +
                         (state.records.water.targetMl?.let { "목표 ${liters(it)} L" }
