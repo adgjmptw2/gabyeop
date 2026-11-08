@@ -39,7 +39,12 @@ import java.time.LocalDate
 import kotlin.math.roundToInt
 
 @Composable
-fun WeekDetailScreen(start: LocalDate, state: RecordsUiState, onBack: () -> Unit) {
+fun WeekDetailScreen(
+    start: LocalDate,
+    state: RecordsUiState,
+    onBack: () -> Unit,
+    onDayClick: (LocalDate) -> Unit,
+) {
     val days = remember(start, state) {
         (0L..6L).map { start.plusDays(it) }.filter { it <= state.today }.asReversed().map { date ->
             state.days[date] ?: RecordDay(date, null, emptyList())
@@ -61,20 +66,24 @@ fun WeekDetailScreen(start: LocalDate, state: RecordsUiState, onBack: () -> Unit
                 )
             }
         }
-        items(days, key = { it.date.toEpochDay() }) { day -> DayCard(day) }
+        items(days, key = { it.date.toEpochDay() }) { day ->
+            DayCard(day, memo = state.notes[day.date]?.memo.orEmpty(), onClick = { onDayClick(day.date) })
+        }
     }
 }
 
 @Composable
-private fun DayCard(day: RecordDay) {
+private fun DayCard(day: RecordDay, memo: String, onClick: () -> Unit) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(day.date.format(DayLabel), style = MaterialTheme.typography.titleMedium.tabularNumbers())
-            if (day.weightKg == null && day.meals.isEmpty()) {
+            if (memo.isNotBlank()) Text(memo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (day.weightKg == null && day.meals.isEmpty() && memo.isBlank()) {
                 Text("기록 없음", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Text(

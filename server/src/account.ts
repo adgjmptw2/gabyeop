@@ -7,6 +7,7 @@ export async function deleteAccount(db: D1Database, userId: string): Promise<voi
     db.prepare("DELETE FROM profiles WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM weights WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM meals WHERE user_id = ?").bind(userId),
+    db.prepare("DELETE FROM notes WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM rate WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM users WHERE id = ?").bind(userId),
   ]);

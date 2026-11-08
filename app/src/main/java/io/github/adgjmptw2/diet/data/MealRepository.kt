@@ -1,6 +1,5 @@
 package io.github.adgjmptw2.diet.data
 
-import io.github.adgjmptw2.diet.domain.Food
 import io.github.adgjmptw2.diet.domain.MealEntry
 import io.github.adgjmptw2.diet.domain.MealType
 import kotlinx.coroutines.flow.Flow
@@ -27,9 +26,6 @@ class MealRepository @Inject constructor(
 
     /** 식단을 기록한 날(오름차순) */
     val loggedDays: Flow<List<LocalDate>> = dao.observeLoggedDays().map { d -> d.map(LocalDate::ofEpochDay) }
-
-    fun recentFoods(limit: Int = 20): Flow<List<Food>> =
-        dao.observeRecentFoods(limit).map { list -> list.map { it.toDomain() } }
 
     /** id가 비어 있으면 새로 만든다. 저장된 id를 돌려줌 */
     suspend fun save(entry: MealEntry): String {

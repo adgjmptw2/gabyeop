@@ -12,17 +12,25 @@ data class WeekSummary(
     val weighDays: Int,
     val avgKcal: Double?,
     val mealDays: Int,
+    val noteDays: Int = 0,
 )
 
 /** 월~일. 첫 기록 이후의 빈 주도 포함하며, 오늘 이후의 기록은 제외한다. */
-fun weeks(weights: List<WeightEntry>, meals: List<MealEntry>, today: LocalDate): List<WeekSummary> {
+fun weeks(
+    weights: List<WeightEntry>,
+    meals: List<MealEntry>,
+    today: LocalDate,
+    noteDays: Set<LocalDate> = emptySet(),
+): List<WeekSummary> {
     val dailyWeights = weights.filter { it.date <= today }.distinctBy { it.date }
     val dailyMeals = meals.filter { it.date <= today }.groupBy { it.date }
-    val firstDay = (dailyWeights.map { it.date } + dailyMeals.keys).minOrNull() ?: return emptyList()
+    val dailyNotes = noteDays.filter { it <= today }
+    val firstDay = (dailyWeights.map { it.date } + dailyMeals.keys + dailyNotes).minOrNull() ?: return emptyList()
     val firstWeek = firstDay.monday()
     val thisWeek = today.monday()
     val weightsByWeek = dailyWeights.groupBy { it.date.monday() }
     val caloriesByWeek = dailyMeals.entries.groupBy({ it.key.monday() }, { day -> day.value.sumOf { it.kcal } })
+    val notesByWeek = dailyNotes.groupingBy { it.monday() }.eachCount()
     var previousAverage: Double? = null
 
     return generateSequence(firstWeek) { if (it < thisWeek) it.plusWeeks(1) else null }
@@ -38,6 +46,7 @@ fun weeks(weights: List<WeightEntry>, meals: List<MealEntry>, today: LocalDate):
                 weighDays = weekWeights.size,
                 avgKcal = dailyCalories.takeIf { it.isNotEmpty() }?.average(),
                 mealDays = dailyCalories.size,
+                noteDays = notesByWeek[start] ?: 0,
             )
             if (average != null) previousAverage = average
             summary

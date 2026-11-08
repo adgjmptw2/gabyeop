@@ -13,14 +13,25 @@ const validMeal = {
   createdAt: 1_000, updatedAt: 2_000, deleted: false,
 };
 
+const validNote = {
+  epochDay: 20_000, memo: "가볍게 시작", note: "아침은 가볍게 먹었다.",
+  updatedAt: 2_000, deleted: false,
+};
+
 describe("sync request validation", () => {
   it("parses a valid request and defaults absent arrays", () => {
-    const parsed = parseSyncRequest({ since: 0, weights: [validWeight], meals: [validMeal] });
+    const parsed = parseSyncRequest({ since: 0, weights: [validWeight], meals: [validMeal], notes: [validNote] });
     expect(parsed.since).toBe(0);
     expect(parsed.profile).toBeNull();
     expect(parsed.weights).toHaveLength(1);
     expect(parsed.meals).toHaveLength(1);
+    expect(parsed.notes).toEqual([validNote]);
     expect(parsed.rejected).toEqual([]);
+  });
+
+  it("defaults notes to an empty array for older clients", () => {
+    const parsed = parseSyncRequest({ since: 0, weights: [validWeight], meals: [validMeal] });
+    expect(parsed.notes).toEqual([]);
   });
 
   it("skips only invalid rows and reports their ids", () => {
@@ -44,10 +55,42 @@ describe("sync request validation", () => {
       since: 0,
       weights: [{ ...validWeight, weightKg: 20 }, { ...validWeight, id: "w2", weightKg: 400 }],
       meals: [{ ...validMeal, kcal: 0 }, { ...validMeal, id: "m2", kcal: 20_000 }],
+      notes: [
+        { ...validNote, memo: "가".repeat(40), note: "나".repeat(2_000) },
+        { ...validNote, epochDay: 20_001, memo: "", note: "", deleted: true },
+      ],
     });
     expect(parsed.rejected).toEqual([]);
     expect(parsed.weights).toHaveLength(2);
     expect(parsed.meals).toHaveLength(2);
+    expect(parsed.notes).toHaveLength(2);
+  });
+
+  it("counts memo and note limits by Unicode code points", () => {
+    const parsed = parseSyncRequest({
+      since: 0,
+      notes: [
+        { ...validNote, memo: "😀".repeat(40), note: "😀".repeat(2_000) },
+        { ...validNote, epochDay: 20_001, memo: "😀".repeat(41) },
+        { ...validNote, epochDay: 20_002, note: "😀".repeat(2_001) },
+      ],
+    });
+    expect(parsed.notes.map((row) => row.epochDay)).toEqual([20_000]);
+    expect(parsed.rejected).toEqual(["n:20001", "n:20002"]);
+  });
+
+  it("rejects notes outside the shared epoch-day range and with invalid timestamps", () => {
+    const parsed = parseSyncRequest({
+      since: 0,
+      notes: [
+        { ...validNote, epochDay: -25_568 },
+        { ...validNote, epochDay: 84_371 },
+        { ...validNote, epochDay: 20_001, updatedAt: -1 },
+        { ...validNote, epochDay: 20_002, updatedAt: 0.5 },
+      ],
+    });
+    expect(parsed.notes).toEqual([]);
+    expect(parsed.rejected).toEqual(["n:-25568", "n:84371", "n:20001", "n:20002"]);
   });
 
   it("rejects non-finite numbers and malformed enum values", () => {
@@ -70,8 +113,20 @@ describe("sync request validation", () => {
     expect(() => parseSyncRequest({ since: 0, weights: rows })).toThrow(HttpError);
   });
 
+  it("applies the 2,000-row limit across all tables, including notes", () => {
+    const notes = Array.from({ length: 2_000 }, (_, index) => ({ ...validNote, epochDay: index }));
+    expect(() => parseSyncRequest({ since: 0, weights: [validWeight], notes })).toThrow(HttpError);
+  });
+
   it("does not let rejected rows bypass the total row limit", () => {
     const rows = Array.from({ length: 2_001 }, (_, index) => ({ ...validWeight, id: `w${index}`, weightKg: 1 }));
     expect(() => parseSyncRequest({ since: 0, weights: rows })).toThrow(HttpError);
+  });
+
+  it("counts rejected rows across arrays toward the total limit", () => {
+    const bad = (id: string) => ({ ...validWeight, id, weightKg: 1 });
+    const badWeights = Array.from({ length: 1_000 }, (_, index) => bad(`w${index}`));
+    const badMeals = Array.from({ length: 1_000 }, (_, index) => ({ ...validMeal, id: `m${index}`, kcal: -1 }));
+    expect(() => parseSyncRequest({ since: 0, weights: badWeights, meals: badMeals, notes: [validNote] })).toThrow(HttpError);
   });
 });

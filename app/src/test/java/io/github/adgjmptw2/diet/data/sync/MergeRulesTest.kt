@@ -1,6 +1,7 @@
 package io.github.adgjmptw2.diet.data.sync
 
 import io.github.adgjmptw2.diet.data.MealEntryEntity
+import io.github.adgjmptw2.diet.data.DayNoteEntity
 import io.github.adgjmptw2.diet.data.ProfileEntity
 import io.github.adgjmptw2.diet.data.WeightEntryEntity
 import org.junit.Assert.assertEquals
@@ -14,6 +15,8 @@ class MergeRulesTest {
         MealEntryEntity("meal", 100, "LUNCH", null, "밥", "🍚", 100.0, "g", 150.0,
             null, null, null, photo, 1, time, deleted)
     private fun profile(time: Long) = ProfileEntity(0, "FEMALE", 1990, 160.0, 65.0, 60.0, "LIGHT", 100, time)
+    private fun note(time: Long, memo: String = "local", deleted: Boolean = false) =
+        DayNoteEntity(100, memo, "detail", time, deleted)
 
     @Test fun equalOrOlderProfileKeepsLocal() {
         assertNull(MergeRules.profile(profile(10), profile(10)))
@@ -59,5 +62,21 @@ class MergeRulesTest {
     }
     @Test fun movingAnExistingIdDoesNotOverwriteANewerDayConflict() {
         assertNull(MergeRules.weight(weight(day = 99), weight("b", 30), weight(time = 20)))
+    }
+    @Test fun newerNoteReplacesTheLocalDay() {
+        val incoming = note(20, memo = "remote")
+        assertEquals(incoming, MergeRules.note(note(10), incoming))
+    }
+    @Test fun equalOrOlderNoteKeepsTheLocalDay() {
+        assertNull(MergeRules.note(note(10), note(10, memo = "remote")))
+        assertNull(MergeRules.note(note(10), note(9, memo = "remote")))
+    }
+    @Test fun newNoteIsAcceptedWithoutALocalRow() {
+        val incoming = note(20, memo = "remote")
+        assertEquals(incoming, MergeRules.note(null, incoming))
+    }
+    @Test fun noteTombstoneKeepsTheRemovalFlag() {
+        val incoming = note(20, memo = "", deleted = true)
+        assertEquals(incoming, MergeRules.note(note(10), incoming))
     }
 }

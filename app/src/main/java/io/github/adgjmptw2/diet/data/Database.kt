@@ -1,10 +1,13 @@
 package io.github.adgjmptw2.diet.data
 
 import androidx.room.AutoMigration
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Index
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
@@ -35,6 +38,25 @@ data class WeightEntryEntity(
     val epochDay: Long,
     val weightKg: Double,
     val createdAt: Long,
+    val updatedAt: Long,
+    val deleted: Boolean = false,
+)
+
+/** 공공 음식 데이터를 다시 넣어도 살아 있도록 food 행 밖에 둔다. */
+@Entity(tableName = "favorite_food")
+data class FavoriteFoodEntity(
+    @PrimaryKey val foodId: String,
+    val createdAt: Long,
+)
+
+/** 체중 행과 별개. 비우면 deleted=1로 남겨 동기화에서 삭제를 알린다. */
+@Entity(tableName = "day_note")
+data class DayNoteEntity(
+    @PrimaryKey val epochDay: Long,
+    @ColumnInfo(defaultValue = "''")
+    val memo: String = "",
+    @ColumnInfo(defaultValue = "''")
+    val note: String = "",
     val updatedAt: Long,
     val deleted: Boolean = false,
 )
@@ -82,15 +104,60 @@ interface WeightDao {
     suspend fun markDeleted(id: String, now: Long)
 }
 
+@Dao
+interface FavoriteFoodDao {
+    @Query("SELECT foodId FROM favorite_food")
+    fun observeIds(): Flow<List<String>>
+
+    @Query("SELECT foodId FROM favorite_food")
+    suspend fun ids(): List<String>
+
+    @Query("SELECT f.* FROM food f JOIN favorite_food fav ON fav.foodId = f.id WHERE f.deleted = 0 ORDER BY fav.createdAt DESC")
+    fun observeFoods(): Flow<List<FoodEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(row: FavoriteFoodEntity)
+
+    @Query("DELETE FROM favorite_food WHERE foodId = :foodId")
+    suspend fun delete(foodId: String)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM favorite_food WHERE foodId = :foodId)")
+    suspend fun contains(foodId: String): Boolean
+}
+
+@Dao
+interface DayNoteDao {
+    @Query("SELECT * FROM day_note WHERE deleted = 0 ORDER BY epochDay")
+    fun observeAll(): Flow<List<DayNoteEntity>>
+
+    @Query("SELECT * FROM day_note WHERE deleted = 0 AND epochDay BETWEEN :from AND :to ORDER BY epochDay")
+    fun observeRange(from: Long, to: Long): Flow<List<DayNoteEntity>>
+
+    @Query("SELECT * FROM day_note WHERE epochDay = :epochDay LIMIT 1")
+    suspend fun byDay(epochDay: Long): DayNoteEntity?
+
+    @Query("SELECT * FROM day_note WHERE updatedAt > :since ORDER BY updatedAt, epochDay")
+    suspend fun changedSince(since: Long): List<DayNoteEntity>
+
+    @Query("SELECT * FROM day_note WHERE deleted = 0 ORDER BY epochDay")
+    suspend fun exportRows(): List<DayNoteEntity>
+
+    @Upsert
+    suspend fun upsert(row: DayNoteEntity)
+}
+
 @Database(
-    entities = [ProfileEntity::class, WeightEntryEntity::class, FoodEntity::class, MealEntryEntity::class],
-    version = 2,
+    entities = [ProfileEntity::class, WeightEntryEntity::class, FoodEntity::class, MealEntryEntity::class,
+        FavoriteFoodEntity::class, DayNoteEntity::class],
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 abstract class DietDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun weightDao(): WeightDao
     abstract fun foodDao(): FoodDao
     abstract fun mealDao(): MealDao
+    abstract fun favoriteFoodDao(): FavoriteFoodDao
+    abstract fun dayNoteDao(): DayNoteDao
 }

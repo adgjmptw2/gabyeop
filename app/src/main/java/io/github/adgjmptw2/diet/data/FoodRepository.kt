@@ -3,11 +3,17 @@ package io.github.adgjmptw2.diet.data
 import android.content.Context
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.adgjmptw2.diet.domain.CustomFoodDraft
 import io.github.adgjmptw2.diet.domain.Food
+import io.github.adgjmptw2.diet.domain.toFood
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.time.Clock
 import java.util.UUID
 import java.util.zip.GZIPInputStream
 import javax.inject.Inject
@@ -21,8 +27,10 @@ import javax.inject.Singleton
 class FoodRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val db: DietDatabase,
+    private val clock: Clock,
 ) {
     private val dao = db.foodDao()
+    private val favoritesDao = db.favoriteFoodDao()
     private val importLock = Mutex()
     @Volatile private var ready = false
 
@@ -35,7 +43,10 @@ class FoodRepository @Inject constructor(
             if (ready) return
             withContext(Dispatchers.IO) {
                 val rows = readAsset()
-                if (dao.builtInCount() != rows.size) {
+                val previous = dao.builtInRows()
+                // 새 v3 칸은 기본 NULL이라 기존 가져오기 행도 값이 같다. 행 개수·내용이 다를 때만 다시 넣는다.
+                val needsImport = previous.size != rows.size || previous != rows.sortedBy { it.id }
+                if (needsImport) {
                     db.withTransaction {
                         dao.clearBuiltIn()
                         rows.chunked(1000).forEach { dao.insertAll(it) }
@@ -50,29 +61,63 @@ class FoodRepository @Inject constructor(
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
         ensureImported()
-        return dao.search(q, limit).map { it.toDomain() }
+        val favorites = favoritesDao.ids().toSet()
+        return dao.search(q, limit).map { it.toDomain(favorite = it.id in favorites) }
     }
 
-    suspend fun byId(id: String): Food? = dao.byId(id)?.toDomain()
+    suspend fun byId(id: String): Food? = dao.byId(id)?.toDomain(favorite = favoritesDao.contains(id))
+
+    fun recentFoods(limit: Int = 20): Flow<List<Food>> =
+        db.mealDao().observeRecentFoods(limit).withFavorites()
+
+    fun favorites(): Flow<List<Food>> = favoritesDao.observeFoods().map { rows -> rows.map { it.toDomain(true) } }
+
+    fun favoriteIds(): Flow<Set<String>> = favoritesDao.observeIds().map { it.toSet() }
+
+    fun customFoods(): Flow<List<Food>> = dao.observeCustom().withFavorites()
+
+    private fun Flow<List<FoodEntity>>.withFavorites(): Flow<List<Food>> =
+        combine(this, favoritesDao.observeIds()) { rows, ids ->
+            val favoriteIds = ids.toSet()
+            rows.map { it.toDomain(favorite = it.id in favoriteIds) }
+        }
+
+    suspend fun setFavorite(id: String, favorite: Boolean) {
+        if (favorite) {
+            if (!favoritesDao.contains(id)) favoritesDao.insert(FavoriteFoodEntity(id, clock.millis()))
+        } else {
+            favoritesDao.delete(id)
+        }
+    }
 
     /** 직접 입력한 음식을 저장해 다음 검색에도 나오게 */
-    suspend fun createCustom(name: String, kcal100: Double, serving: Double, unit: String): Food {
-        val row = FoodEntity(
-            id = "u-" + UUID.randomUUID(),
-            name = name.trim(),
-            brand = "",
-            category = "직접 입력",
-            rep = name.trim(),
-            kcal100 = kcal100,
-            carb100 = null,
-            prot100 = null,
-            fat100 = null,
-            serving = serving,
-            unit = unit,
-            custom = true,
-        )
-        dao.upsert(row)
-        return row.toDomain()
+    suspend fun createCustom(draft: CustomFoodDraft, favorite: Boolean = false): Food {
+        val now = clock.millis()
+        val row = draft.toEntity(id = "u-" + UUID.randomUUID(), updatedAt = now)
+        db.withTransaction {
+            dao.upsert(row)
+            if (favorite) favoritesDao.insert(FavoriteFoodEntity(row.id, now))
+        }
+        return row.toDomain(favorite)
+    }
+
+    suspend fun updateCustom(id: String, draft: CustomFoodDraft, favorite: Boolean = false): Food? {
+        val existing = dao.customById(id) ?: return null
+        val now = clock.millis()
+        val row = draft.toEntity(id = existing.id, updatedAt = now).copy(deleted = false)
+        db.withTransaction {
+            dao.upsert(row)
+            if (favorite && !favoritesDao.contains(id)) favoritesDao.insert(FavoriteFoodEntity(id, now))
+            if (!favorite) favoritesDao.delete(id)
+        }
+        return row.toDomain(favorite)
+    }
+
+    /** 이미 기록한 식단은 이름·kcal을 따로 저장하므로 참조가 깨지지 않는다. */
+    suspend fun deleteCustom(id: String) {
+        val existing = dao.customById(id) ?: return
+        dao.upsert(existing.copy(deleted = true, updatedAt = clock.millis()))
+        favoritesDao.delete(id)
     }
 
     private fun readAsset(): List<FoodEntity> =
@@ -106,7 +151,31 @@ class FoodRepository @Inject constructor(
     }
 }
 
-internal fun FoodEntity.toDomain() = Food(
+private fun CustomFoodDraft.toEntity(id: String, updatedAt: Long): FoodEntity {
+    val saved = toFood(id = id)
+    return FoodEntity(
+        id = saved.id,
+        name = saved.name,
+        brand = saved.brand.orEmpty(),
+        category = saved.category,
+        rep = saved.rep,
+        kcal100 = saved.kcal100,
+        carb100 = saved.carb100,
+        prot100 = saved.prot100,
+        fat100 = saved.fat100,
+        serving = saved.serving,
+        unit = saved.unit,
+        custom = true,
+        updatedAt = updatedAt,
+        servingKcal = saved.servingKcal,
+        servingCarb = saved.servingCarb,
+        servingProt = saved.servingProt,
+        servingFat = saved.servingFat,
+        servingWeightG = saved.servingWeightG,
+    )
+}
+
+internal fun FoodEntity.toDomain(favorite: Boolean = false) = Food(
     id = id,
     name = name,
     brand = brand.ifEmpty { null },
@@ -119,4 +188,10 @@ internal fun FoodEntity.toDomain() = Food(
     serving = serving,
     unit = unit,
     custom = custom,
+    favorite = favorite,
+    servingKcal = servingKcal,
+    servingCarb = servingCarb,
+    servingProt = servingProt,
+    servingFat = servingFat,
+    servingWeightG = servingWeightG,
 )

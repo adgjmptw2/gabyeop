@@ -1,4 +1,4 @@
-import type { SyncProfile, SyncWeight } from "./types";
+import type { SyncNote, SyncProfile, SyncWeight } from "./types";
 
 export interface WeightRow extends SyncWeight {
   seq: number;
@@ -14,13 +14,37 @@ export interface WeightPlanItem {
   userDeletion?: boolean;
 }
 
-/** The specification requires the server copy to win an equal-timestamp tie. */
+export interface NoteRow extends SyncNote {
+  seq: number;
+}
+
+/** Equal timestamps keep the stored (server) copy; the client follows the same rule. */
 export function newerUpdatedAt(incoming: number, stored: number): boolean {
   return incoming > stored;
 }
 
 export function preferProfile(incoming: SyncProfile, stored: SyncProfile): boolean {
   return newerUpdatedAt(incoming.updatedAt, stored.updatedAt);
+}
+
+/** Notes use the same strict last-write-wins rule as weights and meals. */
+export function preferNote(incoming: SyncNote, stored: SyncNote): boolean {
+  return newerUpdatedAt(incoming.updatedAt, stored.updatedAt);
+}
+
+export function planNotes(incoming: readonly SyncNote[], stored: readonly NoteRow[]): NoteRow[] {
+  const byDay = new Map<number, NoteRow>();
+  for (const row of stored) byDay.set(row.epochDay, { ...row });
+
+  const changed = new Map<number, NoteRow>();
+  for (const source of incoming) {
+    const previous = byDay.get(source.epochDay);
+    if (previous !== undefined && !preferNote(source, previous)) continue;
+    const row = { ...source, seq: 0 };
+    byDay.set(row.epochDay, row);
+    changed.set(row.epochDay, row);
+  }
+  return [...changed.values()];
 }
 
 function pickStoredWinner(left: WeightRow, right: WeightRow): WeightRow {

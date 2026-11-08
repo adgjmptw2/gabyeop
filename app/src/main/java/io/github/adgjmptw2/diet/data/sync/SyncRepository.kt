@@ -34,7 +34,8 @@ class SyncRepository @Inject constructor(
         return db.withTransaction {
             db.profileDao().changedSince(since)?.let { appliedVersions["profile"] != it.updatedAt } == true ||
                 db.weightDao().changedSince(since).any { appliedVersions["w:${it.id}"] != it.updatedAt } ||
-                db.mealDao().changedSince(since).any { appliedVersions["m:${it.id}"] != it.updatedAt }
+                db.mealDao().changedSince(since).any { appliedVersions["m:${it.id}"] != it.updatedAt } ||
+                db.dayNoteDao().changedSince(since).any { appliedVersions["n:${it.epochDay}"] != it.updatedAt }
         }
     }
 
@@ -50,27 +51,34 @@ class SyncRepository @Inject constructor(
             val pushStartedAt = progress.startedAt
             val acknowledged = progress.acknowledged.toMutableMap()
             val outgoing = db.withTransaction {
-                Triple(db.profileDao().changedSince(auth.lastPushAt)
+                Outgoing(
+                    db.profileDao().changedSince(auth.lastPushAt)
                     ?.takeIf { acknowledged["profile"] != it.updatedAt }?.wire(),
                     db.weightDao().changedSince(auth.lastPushAt)
                         .filter { acknowledged["w:${it.id}"] != it.updatedAt }.map { it.wire() },
                     db.mealDao().changedSince(auth.lastPushAt)
-                        .filter { acknowledged["m:${it.id}"] != it.updatedAt }.map { it.wire() })
+                        .filter { acknowledged["m:${it.id}"] != it.updatedAt }.map { it.wire() },
+                    db.dayNoteDao().changedSince(auth.lastPushAt)
+                        .filter { acknowledged["n:${it.epochDay}"] != it.updatedAt }.map { it.wire() },
+                )
             }
             // Persist the start time before the first request; later workers resume after the 10-page cap.
             tokens.recordSyncPage(auth.cursor, progress)
-            var profile = outgoing.first
+            var profile = outgoing.profile
             var weightOffset = 0
             var mealOffset = 0
+            var noteOffset = 0
             var cursor = auth.cursor
             repeat(10) {
                 var capacity = 2_000
                 var request: SyncRequest
                 while (true) {
-                    val weights = outgoing.second.drop(weightOffset).take(capacity - if (profile != null) 1 else 0)
+                    val weights = outgoing.weights.drop(weightOffset).take(capacity - if (profile != null) 1 else 0)
                     val mealCapacity = capacity - weights.size - if (profile != null) 1 else 0
-                    val meals = outgoing.third.drop(mealOffset).take(mealCapacity)
-                    request = SyncRequest(cursor, profile, weights, meals)
+                    val meals = outgoing.meals.drop(mealOffset).take(mealCapacity)
+                    val noteCapacity = capacity - weights.size - meals.size - if (profile != null) 1 else 0
+                    val notes = outgoing.notes.drop(noteOffset).take(noteCapacity)
+                    request = SyncRequest(cursor, profile, weights, meals, notes)
                     // Leave room below the server's 1 MiB body limit, including UTF-8 names.
                     if (api.json.encodeToString(request).toByteArray(Charsets.UTF_8).size <= 900_000) break
                     if (capacity == 1) throw IOException("동기화 기록이 너무 커요")
@@ -103,17 +111,26 @@ class SyncRepository @Inject constructor(
                             appliedVersions["m:${row.id}"] = row.updatedAt
                         }
                     }
+                    response.notes.forEach { row ->
+                        MergeRules.note(db.dayNoteDao().byDay(row.epochDay), row.entity())?.let {
+                            db.dayNoteDao().upsert(it)
+                            appliedVersions["n:${row.epochDay}"] = row.updatedAt
+                        }
+                    }
                 }
                 // A crash before this write only causes an idempotent replay of the applied page.
                 cursor = response.cursor
                 request.profile?.let { acknowledged["profile"] = it.updatedAt }
                 request.weights.forEach { acknowledged["w:${it.id}"] = it.updatedAt }
                 request.meals.forEach { acknowledged["m:${it.id}"] = it.updatedAt }
+                request.notes.forEach { acknowledged["n:${it.epochDay}"] = it.updatedAt }
                 tokens.recordSyncPage(cursor, PushProgress(pushStartedAt, acknowledged))
                 profile = null
                 weightOffset += request.weights.size
                 mealOffset += request.meals.size
-                val uploaded = weightOffset == outgoing.second.size && mealOffset == outgoing.third.size
+                noteOffset += request.notes.size
+                val uploaded = weightOffset == outgoing.weights.size && mealOffset == outgoing.meals.size &&
+                    noteOffset == outgoing.notes.size
                 if (uploaded && !response.more) {
                     tokens.finishSync(pushStartedAt)
                     return@withContext true
@@ -125,4 +142,11 @@ class SyncRepository @Inject constructor(
             syncing.value = false
         }
     }
+
+    private data class Outgoing(
+        val profile: SyncProfile?,
+        val weights: List<SyncWeight>,
+        val meals: List<SyncMeal>,
+        val notes: List<SyncNote>,
+    )
 }

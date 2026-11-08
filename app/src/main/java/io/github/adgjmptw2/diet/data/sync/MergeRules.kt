@@ -1,6 +1,7 @@
 package io.github.adgjmptw2.diet.data.sync
 
 import io.github.adgjmptw2.diet.data.MealEntryEntity
+import io.github.adgjmptw2.diet.data.DayNoteEntity
 import io.github.adgjmptw2.diet.data.ProfileEntity
 import io.github.adgjmptw2.diet.data.WeightEntryEntity
 
@@ -12,6 +13,9 @@ object MergeRules {
     fun meal(local: MealEntryEntity?, incoming: MealEntryEntity): MealEntryEntity? =
         incoming.takeIf { local == null || it.updatedAt > local.updatedAt }
             ?.copy(photoPath = local?.photoPath)
+
+    fun note(local: DayNoteEntity?, incoming: DayNoteEntity): DayNoteEntity? =
+        incoming.takeIf { local == null || it.updatedAt > local.updatedAt }
 
     data class WeightChange(val upsert: WeightEntryEntity, val deleteId: String? = null)
 
