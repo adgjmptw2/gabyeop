@@ -47,6 +47,7 @@ import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
+import kotlin.math.abs
 import javax.inject.Inject
 
 data class MealsUiState(
@@ -87,6 +88,8 @@ data class MealEditorState(
     val unit: String = "팩",
     val amountText: String = "1",
     val amountEdited: Boolean = false,
+    /** 가공식품에서 고른 1개·1회·100g 기준. */
+    val portionBasis: String? = null,
     val favoriteIds: Set<String> = emptySet(),
     val customBrand: String = "",
     val customCarbText: String = "",
@@ -109,6 +112,8 @@ data class MealEditorState(
     /** 기록 양. 팩/개는 개수, g/ml는 그램·밀리리터다. */
     val amount: Double? get() = if (original != null && !amountEdited) original.amount else parseMealAmount(amountText)
     val servingWeight: Double? get() = parseOptionalMealAmount(servingWeightText)
+    /** 가공식품 pack 칩: 1개·1회·100g. 다른 음식이면 비어 있다. */
+    val portionChoices: List<PortionChoice> get() = if (!custom) portionChoicesFor(food) else emptyList()
     val previewFood: Food? get() {
         if (!custom) return if (original != null && amount != original.amount) currentFood ?: food else food
         if (name.isBlank()) return null
@@ -161,6 +166,24 @@ data class MealEditorState(
 
 /** 서버가 받는 한 줄 최대치와 같게 맞춘다 */
 private const val MAX_ENTRY_KCAL = 20_000.0
+
+data class PortionChoice(val label: String, val amount: Double, val basis: String)
+
+private fun portionChoicesFor(food: Food?): List<PortionChoice> {
+    val pack = food?.pack?.takeIf { it.isFinite() && it > 0 } ?: return emptyList()
+    val unit = food.unitKind.label
+    if (food.unitKind.isCount) return emptyList()
+    val choices = mutableListOf(PortionChoice("1개 (${pack.mealNumber()}$unit)", pack, PACK_BASIS))
+    if (abs(food.serving - pack) > 0.01) {
+        choices += PortionChoice("1회 (${food.serving.mealNumber()}$unit)", food.serving, SERVING_BASIS)
+    }
+    choices += PortionChoice("100$unit", 100.0, HUNDRED_BASIS)
+    return choices
+}
+
+private const val PACK_BASIS = "pack"
+private const val SERVING_BASIS = "serving"
+private const val HUNDRED_BASIS = "hundred"
 
 private data class ImportState(val preparing: Boolean = true, val error: String? = null)
 private data class MealDay(val date: LocalDate, val entries: List<MealEntry> = emptyList(), val error: String? = null)
@@ -265,7 +288,10 @@ class MealsViewModel @Inject constructor(
         importing.value = ImportState()
         importJob = viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { foods.ensureImported() }
+                withContext(Dispatchers.IO) {
+                    foods.cleanupLegacyFoods()
+                    foods.prepareCatalog()
+                }
                 importing.value = ImportState(preparing = false)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -329,12 +355,18 @@ class MealsViewModel @Inject constructor(
         }
     }
 
-    fun search(query: String) { _query.value = query.take(100) }
+    fun search(query: String) {
+        _query.value = query.take(100)
+        if (importing.value.preparing) prepareFoods()
+    }
 
     fun choose(food: Food) = updateEditor { draft ->
+        val defaultPortion = defaultPortion(food)
         draft.copy(
-            food = food, amountText = food.servingAmount.amountText(), unit = food.unitKind.label,
+            food = food, amountText = (defaultPortion?.amount ?: food.servingAmount).amountText(),
+            unit = food.unitKind.label,
             servingText = food.servingAmount.amountText(),
+            portionBasis = defaultPortion?.basis,
             favorite = food.favorite,
             favoriteIds = if (food.favorite) draft.favoriteIds + food.id else draft.favoriteIds - food.id,
             editingCustomFood = food.takeIf { food.custom },
@@ -346,7 +378,7 @@ class MealsViewModel @Inject constructor(
     fun custom() = updateEditor {
         it.copy(custom = true, customLibraryOnly = false, saveToCustomFoods = false,
             currentFood = null, name = _query.value.trim(), amountText = "1", servingText = "1",
-            unit = FoodUnit.PACK.label, kcalText = "", customBrand = "",
+            unit = FoodUnit.PACK.label, kcalText = "", customBrand = "", portionBasis = null,
             customCarbText = "", customProtText = "", customFatText = "", servingWeightText = "",
             macrosExpanded = false, editingCustomId = null, editingCustomFood = null,
             favorite = false, favoriteIds = emptySet(), error = null)
@@ -356,16 +388,35 @@ class MealsViewModel @Inject constructor(
         it.copy(food = null, currentFood = null, custom = false, customLibraryOnly = false,
             saveToCustomFoods = false, name = "", kcalText = "", amountText = "",
             unit = FoodUnit.GRAM.label, servingText = "100", servingWeightText = "", macrosExpanded = false,
-            customBrand = "", customCarbText = "", customProtText = "", customFatText = "",
+            customBrand = "", customCarbText = "", customProtText = "", customFatText = "", portionBasis = null,
             editingCustomId = null, editingCustomFood = null, favorite = false, error = null)
     }
 
-    fun amount(text: String) = updateEditor { it.copy(amountText = mealNumberInput(text), amountEdited = true, error = null) }
+    fun amount(text: String) = updateEditor {
+        it.copy(amountText = mealNumberInput(text), amountEdited = true, portionBasis = null, error = null)
+    }
+
+    /** 1개·1회·100g 칩. 기록은 지금처럼 g/ml 양으로 저장한다. */
+    fun portionChoice(choice: PortionChoice) = updateEditor {
+        it.copy(amountText = choice.amount.amountText(), amountEdited = true,
+            portionBasis = choice.basis, error = null)
+    }
 
     /** 칩은 1회분 배수를 고른다. 팩/개는 1개를 기준으로 ½·1·2개다. */
     fun portion(multiplier: Double) = updateEditor {
         val base = it.previewFood?.servingAmount ?: it.serving ?: return@updateEditor it
-        it.copy(amountText = (base * multiplier).amountText(), amountEdited = true, error = null)
+        it.copy(amountText = (base * multiplier).amountText(), amountEdited = true,
+            portionBasis = null, error = null)
+    }
+
+    private fun defaultPortion(food: Food): PortionChoice? {
+        val choices = portionChoicesFor(food)
+        if (choices.isEmpty()) return null
+        val pack = choices.firstOrNull { it.basis == PACK_BASIS }
+        return when {
+            food.pack != null && food.pack <= 500.0 -> pack
+            else -> choices.firstOrNull { it.basis == SERVING_BASIS } ?: pack
+        }
     }
 
     fun mealType(type: MealType) = updateEditor { it.copy(type = type, error = null) }
@@ -615,7 +666,10 @@ class MealsViewModel @Inject constructor(
                 db.withTransaction {
                     val food = if (draft.custom && draft.saveToCustomFoods) {
                         foods.createCustom(preview.toCustomDraft(), preview.favorite)
-                    } else preview
+                    } else {
+                        foods.cache(preview)
+                        preview
+                    }
                     meals.save(MealEntry(
                         id = draft.original?.id.orEmpty(), date = draft.date, type = draft.type,
                         foodId = if (draft.original != null) draft.original.foodId else food.id.takeIf { it.isNotEmpty() },

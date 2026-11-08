@@ -2,12 +2,15 @@ package io.github.adgjmptw2.diet.di
 
 import android.content.Context
 import androidx.room.Room
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.adgjmptw2.diet.data.DietDatabase
+import io.github.adgjmptw2.diet.data.steps.StepsRepository
+import io.github.adgjmptw2.diet.data.steps.StepsSource
 import java.time.Clock
 import javax.inject.Singleton
 
@@ -22,4 +25,12 @@ object AppModule {
     @Provides
     @Singleton
     fun clock(): Clock = Clock.systemDefaultZone()
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class StepsModule {
+    @Binds
+    @Singleton
+    abstract fun stepsSource(repository: StepsRepository): StepsSource
 }

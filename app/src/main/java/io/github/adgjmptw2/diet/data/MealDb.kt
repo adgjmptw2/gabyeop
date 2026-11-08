@@ -4,8 +4,6 @@ import androidx.room.Dao
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Upsert
@@ -46,6 +44,9 @@ data class FoodEntity(
     /** 팩/개 1개의 무게(g). 선택 입력이며 영양 계산에는 쓰지 않는다. */
     @ColumnInfo(defaultValue = "NULL")
     val servingWeightG: Double? = null,
+    /** 가공식품 한 개(포장) 총량 g/ml. 없으면 null */
+    @ColumnInfo(defaultValue = "NULL")
+    val pack: Double? = null,
 )
 
 @Entity(tableName = "meal_entry", indices = [Index("epochDay"), Index("foodId")])
@@ -71,17 +72,11 @@ data class MealEntryEntity(
 
 @Dao
 interface FoodDao {
-    @Query("SELECT COUNT(*) FROM food WHERE custom = 0")
-    suspend fun builtInCount(): Int
+    @Query("SELECT id FROM food WHERE custom = 0")
+    suspend fun builtInIds(): List<String>
 
-    @Query("SELECT * FROM food WHERE custom = 0 ORDER BY id")
-    suspend fun builtInRows(): List<FoodEntity>
-
-    @Query("DELETE FROM food WHERE custom = 0")
-    suspend fun clearBuiltIn()
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(rows: List<FoodEntity>)
+    @Query("DELETE FROM food WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 
     @Upsert
     suspend fun upsert(row: FoodEntity)
@@ -95,20 +90,11 @@ interface FoodDao {
     @Query("SELECT * FROM food WHERE id = :id AND custom = 1 AND deleted = 0 LIMIT 1")
     suspend fun customById(id: String): FoodEntity?
 
-    /** 정확히 같은 이름 → 앞부분 일치 → 대표식품명 일치 → 나머지. 같은 순위면 업체 없는 음식, 짧은 이름 먼저 */
-    @Query(
-        """
-        SELECT * FROM food
-        WHERE deleted = 0 AND (name LIKE '%' || :q || '%' OR rep LIKE '%' || :q || '%' OR brand LIKE '%' || :q || '%')
-        ORDER BY
-            CASE WHEN name = :q THEN 0 WHEN name LIKE :q || '%' THEN 1 WHEN rep = :q THEN 2 ELSE 3 END,
-            custom DESC,
-            CASE WHEN brand = '' THEN 0 ELSE 1 END,
-            length(name)
-        LIMIT :limit
-        """
-    )
-    suspend fun search(q: String, limit: Int): List<FoodEntity>
+    /** 내 음식은 수가 적어 모두 읽고, 공백 토큰 AND 규칙은 catalog와 같은 함수로 맞춘다. */
+    @Query("SELECT * FROM food WHERE custom = 1 AND deleted = 0 ORDER BY length(name), name")
+    suspend fun customRows(): List<FoodEntity>
+
+
 }
 
 @Dao
@@ -124,6 +110,9 @@ interface MealDao {
 
     @Query("SELECT * FROM meal_entry WHERE deleted = 0 AND epochDay BETWEEN :from AND :to ORDER BY epochDay, createdAt")
     fun observeRange(from: Long, to: Long): Flow<List<MealEntryEntity>>
+
+    @Query("SELECT DISTINCT foodId FROM meal_entry WHERE foodId IS NOT NULL")
+    suspend fun referencedFoodIds(): List<String>
 
     @Query("SELECT COUNT(DISTINCT epochDay) FROM meal_entry WHERE deleted = 0")
     fun observeLoggedDayCount(): Flow<Int>

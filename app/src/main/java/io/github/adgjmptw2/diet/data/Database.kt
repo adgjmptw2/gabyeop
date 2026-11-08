@@ -64,6 +64,32 @@ data class DayNoteEntity(
     @ColumnInfo(defaultValue = "0") val waterMl: Int = 0,
 )
 
+@Entity(tableName = "step_day")
+data class StepDayEntity(
+    @PrimaryKey val epochDay: Long,
+    val steps: Int,
+    val source: String,
+    val updatedAt: Long,
+)
+
+@Dao
+interface StepDayDao {
+    @Query("SELECT * FROM step_day WHERE epochDay BETWEEN :from AND :to ORDER BY epochDay")
+    fun observeRange(from: Long, to: Long): Flow<List<StepDayEntity>>
+
+    @Query("SELECT * FROM step_day WHERE epochDay BETWEEN :from AND :to ORDER BY epochDay")
+    suspend fun range(from: Long, to: Long): List<StepDayEntity>
+
+    @Query("SELECT * FROM step_day WHERE epochDay = :epochDay LIMIT 1")
+    suspend fun byDay(epochDay: Long): StepDayEntity?
+
+    @Upsert
+    suspend fun upsert(row: StepDayEntity)
+
+    @Query("DELETE FROM step_day")
+    suspend fun clear()
+}
+
 @Entity(tableName = "fast")
 data class FastEntity(
     @PrimaryKey val id: String,
@@ -185,10 +211,12 @@ interface DayNoteDao {
 
 @Database(
     entities = [ProfileEntity::class, WeightEntryEntity::class, FoodEntity::class, MealEntryEntity::class,
-        FavoriteFoodEntity::class, DayNoteEntity::class, FastEntity::class],
-    version = 3,
+        FavoriteFoodEntity::class, DayNoteEntity::class, FastEntity::class, StepDayEntity::class],
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4),
+    ],
 )
 abstract class DietDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
@@ -198,4 +226,5 @@ abstract class DietDatabase : RoomDatabase() {
     abstract fun favoriteFoodDao(): FavoriteFoodDao
     abstract fun dayNoteDao(): DayNoteDao
     abstract fun fastDao(): FastDao
+    abstract fun stepDayDao(): StepDayDao
 }
