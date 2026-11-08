@@ -116,8 +116,7 @@ class AuthRepository @Inject constructor(
                 scheduler.cancel()
                 if (!keepLocal) {
                     reminders.cancel()
-                    cleaner.clear()
-                    tokens.setGuest()
+                    cleaner.clear() // 계정 상태까지 비워 첫 화면으로 돌아간다.
                 }
             }
             clearCredentialState()

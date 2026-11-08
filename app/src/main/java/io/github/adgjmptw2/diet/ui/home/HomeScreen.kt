@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +60,14 @@ private data class Editing(val entry: WeightEntry?)
 fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val s = state ?: return Box(Modifier.fillMaxSize())
-    var editing by remember { mutableStateOf<Editing?>(null) }
+    // 회전·다크 모드 전환에도 창이 남도록 열린 상태와 대상 id만 저장한다.
+    var editingOpen by rememberSaveable { mutableStateOf(false) }
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    val editing = if (!editingOpen) null else Editing(editingId?.let { id ->
+        s.todayEntry?.takeIf { it.id == id } ?: s.recent.firstOrNull { it.entry.id == id }?.entry
+    })
+    val openEditor = { entry: WeightEntry? -> editingId = entry?.id; editingOpen = true }
+    val closeEditor = { editingOpen = false; editingId = null }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -75,7 +83,7 @@ fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
             item {
                 // 떠 있는 버튼은 최근 기록을 가려서 카드 아래 일반 버튼으로 둠
                 Button(
-                    onClick = { editing = Editing(s.todayEntry) },
+                    onClick = { openEditor(s.todayEntry) },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = MaterialTheme.shapes.large,
                 ) {
@@ -110,7 +118,7 @@ fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
                         )
                     } else {
                         s.recent.forEachIndexed { index, row ->
-                            RecentItem(row, onClick = { editing = Editing(row.entry) })
+                            RecentItem(row, onClick = { openEditor(row.entry) })
                             if (index < s.recent.lastIndex) {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(start = 16.dp),
@@ -132,9 +140,9 @@ fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
             initialKg = e.entry?.weightKg,
             dateLocked = e.entry != null,
             recordedDays = s.recordedDays,
-            onSave = { date, kg -> vm.save(date, kg); editing = null },
-            onDelete = e.entry?.let { entry -> { vm.delete(entry.id); editing = null } },
-            onDismiss = { editing = null },
+            onSave = { date, kg -> vm.save(date, kg); closeEditor() },
+            onDelete = e.entry?.let { entry -> { vm.delete(entry.id); closeEditor() } },
+            onDismiss = { closeEditor() },
         )
     }
 }

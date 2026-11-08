@@ -7,6 +7,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import coil3.compose.AsyncImage
+import io.github.adgjmptw2.diet.R
+import java.io.File
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
@@ -113,5 +120,12 @@ private fun MealRow(meal: MealEntry) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.End,
         )
+        meal.photoPath?.let { path ->
+            AsyncImage(
+                model = File(path), contentDescription = "식단 사진", contentScale = ContentScale.Crop,
+                error = painterResource(R.drawable.ic_meal),
+                modifier = Modifier.size(40.dp).clip(MaterialTheme.shapes.small),
+            )
+        }
     }
 }

@@ -139,6 +139,7 @@ private fun SummaryCard(state: ProgressUiState) {
                 when {
                     state.goalReached -> "목표 달성"
                     state.goalDate != null -> state.goalDate.format(GoalDateLabel)
+                    state.goalDateUnavailable -> "지금 추세로는 계산할 수 없어요"
                     else -> "기록이 더 쌓이면 보여요"
                 },
             )

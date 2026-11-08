@@ -42,6 +42,8 @@ data class ProgressUiState(
     val lostKg: Double?,
     val monthChangeKg: Double?,
     val goalDate: LocalDate?,
+    /** 최근 4주 기록이 4개 이상인데 줄고 있지 않을 때 */
+    val goalDateUnavailable: Boolean = false,
     val goalReached: Boolean,
     val badges: List<BadgeState>,
 )
@@ -75,6 +77,8 @@ class ProgressViewModel @Inject constructor(
             lostKg = currentKg?.let { profile.startWeightKg - it },
             monthChangeKg = monthEntries.lastOrNull()?.let { latest -> monthBaseline?.let { latest.weightKg - it.weightKg } },
             goalDate = expectedGoalDate(entries, profile.targetWeightKg, today),
+            goalDateUnavailable = entries.filter { it.date >= today.minusDays(27) && it.date <= today }
+                .distinctBy { it.date }.size >= 4,
             goalReached = currentKg != null && currentKg <= profile.targetWeightKg,
             badges = badges(profile, entries, mealDays, today),
         )
