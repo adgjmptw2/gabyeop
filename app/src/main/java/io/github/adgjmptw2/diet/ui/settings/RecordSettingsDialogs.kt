@@ -11,6 +11,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import io.github.adgjmptw2.diet.domain.WaterSettings
 import io.github.adgjmptw2.diet.ui.common.comma
@@ -47,7 +49,10 @@ internal fun CalorieTargetDialog(state: RecordSettingsState, onDismiss: () -> Un
 
 @Composable
 internal fun WaterSettingsDialog(state: RecordSettingsState, onDismiss: () -> Unit, onSave: (WaterSettings) -> Unit) {
-    var glass by rememberSaveable { mutableIntStateOf(state.water.glassMl) }
+    var glass by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        val text = state.water.glassMl.toString()
+        mutableStateOf(TextFieldValue(text, selection = TextRange(0, text.length)))
+    }
     var manual by rememberSaveable { mutableStateOf(state.water.targetMl != null) }
     var value by rememberSaveable { mutableStateOf((state.water.targetMl ?: state.automaticWaterMl).toString()) }
     val parsed = value.toIntOrNull()
@@ -55,15 +60,11 @@ internal fun WaterSettingsDialog(state: RecordSettingsState, onDismiss: () -> Un
     AlertDialog(onDismissRequest = onDismiss, title = { Text("물") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("한 잔", style = MaterialTheme.typography.titleSmall)
-                listOf(150, 200, 250, 300, 500).chunked(3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { ml ->
-                            FilterChip(selected = glass == ml, onClick = { glass = ml }, modifier = Modifier.weight(1f),
-                                label = { Text("${ml} ml") })
-                        }
-                    }
-                }
+                OutlinedTextField(glass, { next ->
+                    if (next.text.length <= 4 && next.text.all(Char::isDigit)) glass = next
+                }, label = { Text("한 잔 크기") }, suffix = { Text("ml") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = !validCup(glass.text), supportingText = { if (!validCup(glass.text)) Text("50~2,000 ml") })
                 RadioOption("자동 (${liters(state.automaticWaterMl)} L)", !manual) { manual = false }
                 Text("체중 × 30 ml · 250 ml 단위 · 1.5~3.5 L", style = MaterialTheme.typography.labelSmall)
                 RadioOption("직접 정하기", manual) { manual = true }
@@ -73,10 +74,12 @@ internal fun WaterSettingsDialog(state: RecordSettingsState, onDismiss: () -> Un
                     supportingText = { if (manual && !valid) Text("250~10,000 ml") })
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(WaterSettings(glass, if (manual) parsed else null)) },
-            enabled = !manual || valid) { Text("저장") } },
+        confirmButton = { TextButton(onClick = { onSave(WaterSettings(glass.text.toInt(), if (manual) parsed else null)) },
+            enabled = validCup(glass.text) && (!manual || valid)) { Text("저장") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } })
 }
+
+private fun validCup(value: String): Boolean = value.toIntOrNull()?.let { it in 50..2000 } == true
 
 @Composable
 private fun RadioOption(label: String, selected: Boolean, onClick: () -> Unit) {

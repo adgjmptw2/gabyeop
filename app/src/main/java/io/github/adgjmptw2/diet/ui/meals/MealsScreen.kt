@@ -26,6 +26,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +52,7 @@ import io.github.adgjmptw2.diet.domain.MealEntry
 import io.github.adgjmptw2.diet.domain.MealType
 import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.common.MacroSummary
+import io.github.adgjmptw2.diet.ui.common.MacroGoalSheet
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.io.File
@@ -58,17 +61,34 @@ import java.time.LocalDate
 private const val DAY_MILLIS = 86_400_000L
 
 @Composable
-fun MealsScreen(vm: MealsViewModel = hiltViewModel()) {
+fun MealsScreen(vm: MealsViewModel = hiltViewModel(), tracking: TrackingViewModel = hiltViewModel(), openAddRequest: Long = 0) {
     val state by vm.state.collectAsStateWithLifecycle()
     val editor by vm.editor.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val search by vm.search.collectAsStateWithLifecycle()
+    val goals by tracking.macroGoals.collectAsStateWithLifecycle()
+    val trackingError by tracking.error.collectAsStateWithLifecycle()
     var pickingDate by rememberSaveable { mutableStateOf(false) }
+    var editingGoals by rememberSaveable { mutableStateOf(false) }
+    var handledAdd by rememberSaveable { mutableLongStateOf(0) }
+    LaunchedEffect(openAddRequest) {
+        if (openAddRequest > handledAdd) {
+            vm.selectDate(state.today)
+            val type = when (java.time.LocalTime.now().hour) {
+                in 5..10 -> MealType.BREAKFAST
+                in 11..15 -> MealType.LUNCH
+                in 16..21 -> MealType.DINNER
+                else -> MealType.SNACK
+            }
+            vm.add(type)
+            handledAdd = openAddRequest
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text("식단", style = MaterialTheme.typography.headlineLarge) }
         item {
@@ -89,8 +109,11 @@ fun MealsScreen(vm: MealsViewModel = hiltViewModel()) {
             }
         }
         item { NutritionCard(state) }
-        item { TrackingCards(state.date) }
+        item { MacroSummary(state.entries, goals, state.targetKcal ?: 0, { editingGoals = true }) }
         state.error?.let { error ->
+            item { Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+        }
+        trackingError?.let { error ->
             item { Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         }
         MealType.entries.forEach { type ->
@@ -103,6 +126,8 @@ fun MealsScreen(vm: MealsViewModel = hiltViewModel()) {
     if (pickingDate) {
         MealDatePicker(state.date, state.today, onSelect = vm::selectDate, onDismiss = { pickingDate = false })
     }
+    if (editingGoals) MacroGoalSheet(goals, state.targetKcal ?: 0,
+        { editingGoals = false }, { tracking.setMacroGoals(it); editingGoals = false })
     editor?.let { draft ->
         key(draft.session) { AddFoodSheet(draft, query, search, vm) }
     }
@@ -117,10 +142,8 @@ private fun NutritionCard(state: MealsUiState) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (state.date == state.today) "오늘 먹은 양" else "먹은 양", style = MaterialTheme.typography.titleMedium)
             Text("${state.total.kcal.kcalText()} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
-            val recommendedNote = state.recommendedKcal
-                ?.takeIf { it != state.targetKcal }?.let { " · 권장 ${it.comma()} kcal" } ?: ""
             Text(
-                "목표 ${state.targetKcal?.comma() ?: "—"} kcal$recommendedNote",
+                "목표 ${state.targetKcal?.comma() ?: "—"} kcal",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             val target = state.targetKcal ?: 0
@@ -128,7 +151,6 @@ private fun NutritionCard(state: MealsUiState) {
                 progress = { if (target > 0) (state.total.kcal / target).toFloat().coerceIn(0f, 1f) else 0f },
                 modifier = Modifier.fillMaxWidth(),
             )
-            MacroSummary(state.entries)
         }
     }
 }

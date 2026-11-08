@@ -15,14 +15,21 @@ import io.github.adgjmptw2.diet.ui.common.todayDates
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
 
 data class WaterUiState(val notes: Map<LocalDate, io.github.adgjmptw2.diet.domain.DailyNote> = emptyMap(),
-    val settings: WaterSettings = WaterSettings(), val automaticTargetMl: Int = 2000)
-data class FastingUiState(val active: Fast? = null, val targetHours: Int = 16)
+    val settings: WaterSettings = WaterSettings(), val automaticTargetMl: Int = 2000, val ready: Boolean = false)
+data class FastingUiState(val active: Fast? = null, val targetHours: Int = 16, val recent: List<Fast> = emptyList())
+sealed interface TrackingEvent {
+    data class WaterAdded(val date: LocalDate, val deltaMl: Int) : TrackingEvent
+    data class FastFinished(val fast: Fast) : TrackingEvent
+}
 
 @HiltViewModel
 class TrackingViewModel @Inject constructor(
@@ -33,19 +40,36 @@ class TrackingViewModel @Inject constructor(
     weights: WeightRepository,
     private val clock: Clock,
 ) : ViewModel() {
+    private val writes = Mutex()
     val error = MutableStateFlow<String?>(null)
+    private val waterChannel = Channel<TrackingEvent.WaterAdded>(Channel.BUFFERED)
+    val waterEvents = waterChannel.receiveAsFlow()
+    private val fastChannel = Channel<TrackingEvent.FastFinished>(Channel.BUFFERED)
+    val fastingEvents = fastChannel.receiveAsFlow()
+    val macroGoals = settings.macroGoals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), io.github.adgjmptw2.diet.domain.MacroGoal())
     val water = combine(notes.notes(), settings.water, profiles.profile, weights.entries, todayDates(clock)) { days, options, profile, entries, today ->
         val kg = entries.firstOrNull { it.date <= today }?.weightKg ?: profile?.startWeightKg ?: 65.0
-        WaterUiState(days, options, waterTargetMl(kg))
+        WaterUiState(days, options, waterTargetMl(kg), ready = true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WaterUiState())
     val fasting = combine(fasts.entries, settings.fastingHours) { rows, hours ->
-        FastingUiState(rows.filter { it.endAt == null }.maxWithOrNull(compareBy<Fast> { it.updatedAt }.thenBy { it.id }), hours)
+        val live = rows.filterNot { it.deleted }
+        FastingUiState(live.filter { it.endAt == null }.maxWithOrNull(compareBy<Fast> { it.updatedAt }.thenBy { it.id }), hours,
+            live.filter { it.endAt != null }.sortedByDescending { it.endAt }.take(5))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FastingUiState())
     fun adjustWater(date: LocalDate, delta: Int) = action { notes.adjustWater(date, delta) }
-    fun selectTarget(hours: Int) = action { settings.setFastingHours(hours) }
-    fun start() = action { fasts.start(fasting.value.targetHours) }
-    fun finish() = action { fasts.finish() }
+    fun addWater(date: LocalDate, ml: Int) = action {
+        val added = notes.adjustWater(date, ml)
+        if (added > 0) waterChannel.send(TrackingEvent.WaterAdded(date, added))
+    }
+    fun setWater(date: LocalDate, ml: Int) = action { notes.setWater(date, ml) }
+    fun setGlassMl(ml: Int) = action { settings.setGlassMl(ml) }
+    fun setMacroGoals(goal: io.github.adgjmptw2.diet.domain.MacroGoal) = action { settings.setMacroGoals(goal) }
+    fun selectTarget(hours: Int) = action { settings.setFastingHours(hours); fasts.changeTarget(hours) }
+    fun start() = action { fasts.start(settings.fastingHours.first()) }
+    fun finish() = action { fasts.finish()?.let { fastChannel.send(TrackingEvent.FastFinished(it)) } }
+    fun undoFinish(fast: Fast) = action { if (!fasts.undoFinish(fast)) error.value = "단식 기록이 바뀌어 되돌릴 수 없어요" }
     fun now(): Long = clock.millis()
+    fun zone() = clock.zone
     fun notificationDenied() { error.value = "알림 권한이 꺼져 있어요" }
     fun changeStart(dayOffset: Long, hour: Int, minute: Int) = action {
         val active = fasting.value.active ?: return@action
@@ -60,9 +84,11 @@ class TrackingViewModel @Inject constructor(
     }
     private fun action(block: suspend () -> Unit) {
         viewModelScope.launch {
-            try { error.value = null; block() }
-            catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error.value = "저장하지 못했어요" }
+            writes.withLock {
+                try { error.value = null; block() }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { error.value = "저장하지 못했어요" }
+            }
         }
     }
 }

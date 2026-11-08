@@ -5,6 +5,20 @@ import org.junit.Test
 import java.time.ZonedDateTime
 
 class FastingTest {
+    @Test fun everyTargetFromOneToSeventyTwoHoursHasCorrectProgress() {
+        assertTrue(1 in Fasting.TARGET_HOURS)
+        assertTrue(72 in Fasting.TARGET_HOURS)
+        assertFalse(0 in Fasting.TARGET_HOURS)
+        assertFalse(73 in Fasting.TARGET_HOURS)
+        Fasting.TARGET_HOURS.forEach { hours ->
+            val target = hours * Fasting.HOUR_MS
+            assertEquals(0.5f, Fasting.progress(target / 2, hours), 0.0001f)
+            assertEquals(1f, Fasting.progress(target, hours), 0f)
+            assertEquals(1f, Fasting.progress(target + Fasting.HOUR_MS, hours), 0f)
+        }
+        assertEquals("72시간 0분", Fasting.durationText(72 * Fasting.HOUR_MS))
+        assertEquals(5, Fasting.stageIndex(72 * Fasting.HOUR_MS))
+    }
     @Test fun stagesChangeExactlyAtEachBoundary() {
         val boundaries = listOf(4, 8, 12, 18, 24)
         boundaries.forEachIndexed { index, hour ->

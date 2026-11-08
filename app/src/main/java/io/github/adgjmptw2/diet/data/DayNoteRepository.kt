@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import io.github.adgjmptw2.diet.domain.DailyNote
 import io.github.adgjmptw2.diet.domain.sanitizeMemo
 import io.github.adgjmptw2.diet.domain.sanitizeNote
+import io.github.adgjmptw2.diet.data.settings.TrackingStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Clock
@@ -15,6 +16,7 @@ import javax.inject.Singleton
 class DayNoteRepository @Inject constructor(
     private val db: DietDatabase,
     private val clock: Clock,
+    private val tracking: TrackingStore,
 ) {
     private val dao = db.dayNoteDao()
 
@@ -53,16 +55,31 @@ class DayNoteRepository @Inject constructor(
 
     suspend fun clear(date: LocalDate) = save(date, "", "")
 
-    suspend fun adjustWater(date: LocalDate, deltaMl: Int) = db.withTransaction {
-        val existing = dao.byDay(date.toEpochDay())
-        val live = existing?.takeUnless { it.deleted }
-        val water = ((live?.waterMl ?: 0) + deltaMl).coerceIn(0, 10_000)
-        val memo = live?.memo.orEmpty()
-        val note = live?.note.orEmpty()
-        val empty = memo.isBlank() && note.isBlank() && water == 0
-        if (empty && (existing == null || existing.deleted)) return@withTransaction
-        dao.upsert(DayNoteEntity(date.toEpochDay(), memo, note,
-            maxOf(clock.millis(), (existing?.updatedAt ?: 0) + 1), empty, water))
+    suspend fun adjustWater(date: LocalDate, deltaMl: Int): Int {
+        val delta = db.withTransaction {
+            val existing = dao.byDay(date.toEpochDay())
+            val live = existing?.takeUnless { it.deleted }
+            val water = ((live?.waterMl ?: 0) + deltaMl).coerceIn(0, 10_000)
+            val memo = live?.memo.orEmpty()
+            val note = live?.note.orEmpty()
+            // 0 ml를 명시한 날도 그래프에서는 기록한 날이다.
+            dao.upsert(DayNoteEntity(date.toEpochDay(), memo, note,
+                maxOf(clock.millis(), (existing?.updatedAt ?: 0) + 1), false, water))
+            water - (live?.waterMl ?: 0)
+        }
+        tracking.markWaterRecorded(date)
+        return delta
+    }
+
+    suspend fun setWater(date: LocalDate, ml: Int) {
+        require(ml in 0..10_000)
+        db.withTransaction {
+            val existing = dao.byDay(date.toEpochDay())
+            val live = existing?.takeUnless { it.deleted }
+            dao.upsert(DayNoteEntity(date.toEpochDay(), live?.memo.orEmpty(), live?.note.orEmpty(),
+                maxOf(clock.millis(), (existing?.updatedAt ?: 0) + 1), false, ml))
+        }
+        tracking.markWaterRecorded(date)
     }
 }
 

@@ -25,6 +25,7 @@ data class DayDetailState(
     val memo: String, val note: String, val meals: List<MealEntry>,
     val bodyFatPct: Double? = null, val profile: Profile? = null,
     val waterMl: Int = 0, val glassMl: Int = 250, val finishedFasts: List<Fast> = emptyList(),
+    val macroGoals: MacroGoal = MacroGoal(), val targetKcal: Int = 0, val today: LocalDate = date,
 )
 
 data class DaySaveState(val date: LocalDate? = null, val saving: Boolean = false,
@@ -140,12 +141,34 @@ class RecordsViewModel @Inject constructor(
         catch (e: CancellationException) { throw e }
         catch (_: Exception) { _saveState.value = DaySaveState(date, error = "물을 저장하지 못했어요") }
     }
+    fun setWater(date: LocalDate, ml: Int) = viewModelScope.launch {
+        try { dayNotes.setWater(date, ml) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { _saveState.value = DaySaveState(date, error = "물을 저장하지 못했어요") }
+    }
 
-    fun dayDetail(date: LocalDate): Flow<DayDetailState> = combine(state.filterNotNull(), tracking.water) { s, water ->
+    fun setGlassMl(date: LocalDate, ml: Int) = viewModelScope.launch {
+        try { tracking.setGlassMl(ml) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { _saveState.value = DaySaveState(date, error = "한 잔 크기를 저장하지 못했어요") }
+    }
+
+    fun setMacroGoals(date: LocalDate, goal: MacroGoal) = viewModelScope.launch {
+        try { tracking.setMacroGoals(goal) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { _saveState.value = DaySaveState(date, error = "영양정보 목표를 저장하지 못했어요") }
+    }
+
+    fun dayDetail(date: LocalDate): Flow<DayDetailState> = combine(state.filterNotNull(), tracking.water, tracking.macroGoals) { s, water, goals ->
         val weight = s.weights.firstOrNull { it.date == date }
         val note = s.notes[date]
+        val p = s.profile
+        val current = s.weights.firstOrNull { it.date <= s.today }?.weightKg ?: p?.startWeightKg ?: 65.0
+        val targetKcal = p?.let { it.calorieTarget ?: Calories.target(it, current, s.today,
+            Goal.progress(it.startWeightKg, it.targetWeightKg, current).reached).target } ?: 0
         DayDetailState(date, weight?.weightKg, weight?.id, note?.memo.orEmpty(), note?.note.orEmpty(),
             s.days[date]?.meals.orEmpty(), weight?.bodyFatPct, s.profile, note?.waterMl ?: 0, water.glassMl,
-            s.fasts.filter { it.endAt?.let { end -> Instant.ofEpochMilli(end).atZone(clock.zone).toLocalDate() == date } == true })
+            s.fasts.filter { it.endAt?.let { end -> Instant.ofEpochMilli(end).atZone(clock.zone).toLocalDate() == date } == true },
+            goals, targetKcal, s.today)
     }
 }

@@ -55,10 +55,11 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import io.github.adgjmptw2.diet.ui.common.comma
+import io.github.adgjmptw2.diet.ui.common.MacroGoalSheet
 import io.github.adgjmptw2.diet.ui.meals.liters
 
 private enum class SettingsPage { MAIN, THEME, PRIVACY, LICENSES, FONT }
-private enum class AccountDialog { LINK, LOGOUT, DELETE, CLEAR_DEVICE, CALORIE, WATER }
+private enum class AccountDialog { LINK, LOGOUT, DELETE, CLEAR_DEVICE, CALORIE, WATER, MACROS }
 
 @Composable
 fun SettingsScreen(
@@ -141,6 +142,10 @@ fun SettingsScreen(
                         state.records.calorieTarget?.let { "${it.comma()} kcal" }
                             ?: "권장 ${state.records.recommendedKcal.comma()} kcal",
                         !state.busy && state.records.recommendedKcal > 0) { dialog = AccountDialog.CALORIE }
+                    val macroGoals = state.records.macroGoals.resolved(state.records.calorieTarget ?: state.records.recommendedKcal)
+                    SettingsRow("영양정보 목표",
+                        "탄 ${macroGoals.carbGrams} · 지 ${macroGoals.fatGrams} · 단 ${macroGoals.proteinGrams} g",
+                        !state.busy && state.records.recommendedKcal > 0) { dialog = AccountDialog.MACROS }
                     SettingsRow("물", "한 잔 ${state.records.water.glassMl} ml · " +
                         (state.records.water.targetMl?.let { "목표 ${liters(it)} L" }
                             ?: "자동 ${liters(state.records.automaticWaterMl)} L"), !state.busy) { dialog = AccountDialog.WATER }
@@ -220,6 +225,9 @@ fun SettingsScreen(
             onSave = { vm.setCalorieTarget(it); dialog = null })
         AccountDialog.WATER -> WaterSettingsDialog(state.records, onDismiss = { dialog = null },
             onSave = { vm.setWater(it); dialog = null })
+        AccountDialog.MACROS -> MacroGoalSheet(state.records.macroGoals, state.records.calorieTarget ?: state.records.recommendedKcal,
+            onDismiss = { dialog = null },
+            onSave = { vm.setMacroGoals(it); dialog = null })
         AccountDialog.LINK -> AlertDialog(onDismissRequest = { dialog = null },
             title = { Text("Google 계정 연결") },
             text = { Text("연결하면 이 기기의 체중과 식단 기록을 서버에 저장해요. 사진은 이 기기에 남아요") },

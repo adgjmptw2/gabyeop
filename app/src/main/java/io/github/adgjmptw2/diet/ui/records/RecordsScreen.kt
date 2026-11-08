@@ -33,7 +33,7 @@ private enum class CalendarView(val label: String) { DAY("일"), WEEK("주"), MO
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecordsScreen(isActive: Boolean = true, openTodayRequest: Long = 0, vm: RecordsViewModel = hiltViewModel()) {
+fun RecordsScreen(isActive: Boolean = true, openTodayRequest: Long = 0, vm: RecordsViewModel = hiltViewModel(), showTitle: Boolean = true) {
     val state by vm.state.collectAsStateWithLifecycle()
     val s = state ?: return Box(Modifier.fillMaxSize())
     var view by rememberSaveable { mutableStateOf(CalendarView.MONTH) }
@@ -60,7 +60,7 @@ fun RecordsScreen(isActive: Boolean = true, openTodayRequest: Long = 0, vm: Reco
     val week = LocalDate.ofEpochDay(weekEpoch)
     val month = YearMonth.from(LocalDate.ofEpochDay(monthEpoch))
     Column(Modifier.fillMaxSize()) {
-        Text("기록", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(16.dp))
+        if (showTitle) Text("기록", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(16.dp))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             CalendarView.entries.forEachIndexed { index, option ->
                 SegmentedButton(selected = view == option, onClick = { view = option },

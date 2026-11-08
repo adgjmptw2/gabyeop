@@ -7,6 +7,7 @@ data class Fast(
 data class FastStage(val fromHours: Int, val name: String, val description: String)
 
 object Fasting {
+    val TARGET_HOURS = 1..72
     const val HOUR_MS = 3_600_000L
     const val MAX_DURATION_MS = 7 * 24 * HOUR_MS
     val stages = listOf(
@@ -22,7 +23,7 @@ object Fasting {
     fun stageIndex(elapsedMillis: Long): Int =
         stages.indexOfLast { elapsedMillis.coerceAtLeast(0) >= it.fromHours * HOUR_MS }.coerceAtLeast(0)
     fun progress(elapsedMillis: Long, targetHours: Int): Float =
-        (elapsedMillis.toDouble() / (targetHours.coerceAtLeast(1) * HOUR_MS)).toFloat().coerceIn(0f, 1f)
+        (elapsedMillis.coerceAtLeast(0).toDouble() / (targetHours.coerceIn(TARGET_HOURS) * HOUR_MS)).toFloat().coerceIn(0f, 1f)
     fun durationText(elapsedMillis: Long): String {
         val minutes = elapsedMillis.coerceAtLeast(0) / 60_000
         return "${minutes / 60}시간 ${minutes % 60}분"

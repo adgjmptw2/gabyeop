@@ -2,21 +2,15 @@ package io.github.adgjmptw2.diet.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -56,8 +49,10 @@ import io.github.adgjmptw2.diet.data.sync.SyncRepository
 import io.github.adgjmptw2.diet.ui.home.HomeScreen
 import io.github.adgjmptw2.diet.ui.meals.MealsScreen
 import io.github.adgjmptw2.diet.ui.onboarding.OnboardingScreen
-import io.github.adgjmptw2.diet.ui.progress.ProgressScreen
-import io.github.adgjmptw2.diet.ui.records.RecordsScreen
+import io.github.adgjmptw2.diet.domain.GraphMetric
+import io.github.adgjmptw2.diet.ui.fasting.FastingScreen
+import io.github.adgjmptw2.diet.ui.records.RecordsHub
+import io.github.adgjmptw2.diet.ui.steps.StepsScreen
 import io.github.adgjmptw2.diet.ui.settings.SettingsScreen
 import io.github.adgjmptw2.diet.ui.theme.AppTheme
 import io.github.adgjmptw2.diet.ui.welcome.WelcomeScreen
@@ -131,15 +126,15 @@ class RootViewModel @Inject constructor(
 }
 
 @Composable
-fun AppRoot(vm: RootViewModel = hiltViewModel(), recordTodayRequest: Long = 0, mealsRequest: Long = 0) {
+fun AppRoot(vm: RootViewModel = hiltViewModel(), recordTodayRequest: Long = 0, mealsRequest: Long = 0, fastingRequest: Long = 0) {
     val state by vm.state.collectAsStateWithLifecycle()
     val syncMessage by vm.syncMessage.collectAsStateWithLifecycle()
     var editingProfile by rememberSaveable { mutableStateOf(false) }
     var showingSettings by rememberSaveable { mutableStateOf(false) }
     val mainState = rememberSaveableStateHolder()
     var handledLaunch by rememberSaveable { mutableLongStateOf(0L) }
-    LaunchedEffect(recordTodayRequest, mealsRequest) {
-        val latest = maxOf(recordTodayRequest, mealsRequest)
+    LaunchedEffect(recordTodayRequest, mealsRequest, fastingRequest) {
+        val latest = maxOf(recordTodayRequest, mealsRequest, fastingRequest)
         if (latest > handledLaunch) {
             showingSettings = false
             editingProfile = false
@@ -167,8 +162,8 @@ fun AppRoot(vm: RootViewModel = hiltViewModel(), recordTodayRequest: Long = 0, m
                 onThemeSelected = vm::setTheme)
         } else {
             mainState.SaveableStateProvider("main") {
-                MainScaffold(onEditProfile = { showingSettings = true },
-                    recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest, syncMessage = syncMessage)
+                MainScaffold(onEditProfile = { editingProfile = true }, onOpenSettings = { showingSettings = true },
+                    recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest, fastingRequest = fastingRequest, syncMessage = syncMessage)
             }
         }
     }
@@ -185,25 +180,56 @@ fun AppRoot(vm: RootViewModel = hiltViewModel(), recordTodayRequest: Long = 0, m
 
 private enum class Tab(val label: String, @DrawableRes val icon: Int) {
     HOME("홈", R.drawable.ic_home),
-    RECORDS("기록", R.drawable.ic_records),
-    PROGRESS("성과", R.drawable.ic_chart),
     MEALS("식단", R.drawable.ic_meal),
+    FASTING("단식", R.drawable.ic_fasting),
+    STEPS("걸음", R.drawable.ic_steps),
+    RECORDS("기록", R.drawable.ic_records),
 }
 
 @Composable
-private fun MainScaffold(onEditProfile: () -> Unit, recordTodayRequest: Long, mealsRequest: Long, syncMessage: String?) {
+private fun MainScaffold(onEditProfile: () -> Unit, onOpenSettings: () -> Unit,
+    recordTodayRequest: Long, mealsRequest: Long, fastingRequest: Long, syncMessage: String?) {
     val tabs = Tab.entries
     val pager = rememberPagerState { tabs.size }
     val scope = rememberCoroutineScope()
     var handledLaunch by rememberSaveable { mutableLongStateOf(0L) }
-    LaunchedEffect(recordTodayRequest, mealsRequest) {
-        val latest = maxOf(recordTodayRequest, mealsRequest)
+    var request by rememberSaveable { mutableLongStateOf(0L) }
+    var recordsRequest by rememberSaveable { mutableLongStateOf(0L) }
+    var dayRequest by rememberSaveable { mutableLongStateOf(0L) }
+    var addMealRequest by rememberSaveable { mutableLongStateOf(0L) }
+    var section by rememberSaveable { mutableStateOf(RecordSection.CALENDAR) }
+    var metric by rememberSaveable { mutableStateOf(GraphMetric.WATER) }
+
+    fun navigate(destination: Destination) {
+        request++
+        val tab = when (destination) {
+            Destination.Home -> Tab.HOME
+            Destination.Meals -> Tab.MEALS
+            Destination.AddMeal -> { addMealRequest = request; Tab.MEALS }
+            Destination.Fasting -> Tab.FASTING
+            Destination.Steps -> Tab.STEPS
+            is Destination.Records -> {
+                section = destination.section
+                metric = destination.metric
+                recordsRequest = request
+                if (destination.openToday) dayRequest = request
+                Tab.RECORDS
+            }
+        }
+        scope.launch { pager.scrollToPage(tab.ordinal) }
+    }
+
+    LaunchedEffect(recordTodayRequest, mealsRequest, fastingRequest) {
+        val latest = maxOf(recordTodayRequest, mealsRequest, fastingRequest)
         if (latest > handledLaunch) {
-            pager.scrollToPage(if (recordTodayRequest >= mealsRequest) Tab.RECORDS.ordinal else Tab.MEALS.ordinal)
+            navigate(when {
+                recordTodayRequest == latest -> Destination.Records(openToday = true)
+                fastingRequest == latest -> Destination.Fasting
+                else -> Destination.Meals
+            })
             handledLaunch = latest
         }
     }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
@@ -218,17 +244,10 @@ private fun MainScaffold(onEditProfile: () -> Unit, recordTodayRequest: Long, me
                         val selected = pager.currentPage == i
                         NavigationBarItem(
                             selected = selected,
-                            onClick = { scope.launch { pager.animateScrollToPage(i) } },
-                            icon = {
-                                Icon(painterResource(tab.icon), contentDescription = null, modifier = Modifier.size(24.dp))
-                            },
-                            label = {
-                                Text(
-                                    tab.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            },
+                            onClick = { scope.launch { pager.scrollToPage(i) } },
+                            icon = { Icon(painterResource(tab.icon), contentDescription = null, modifier = Modifier.size(24.dp)) },
+                            label = { Text(tab.label, style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -242,52 +261,16 @@ private fun MainScaffold(onEditProfile: () -> Unit, recordTodayRequest: Long, me
             }
         },
     ) { padding ->
-        HorizontalPager(
-            state = pager,
+        HorizontalPager(state = pager,
             modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding),
-            beyondViewportPageCount = 1,
-        ) { page ->
+            beyondViewportPageCount = 1) { page ->
             when (tabs[page]) {
-                Tab.HOME -> HomeScreen(onEditProfile = onEditProfile,
-                    onOpenMeals = { scope.launch { pager.animateScrollToPage(Tab.MEALS.ordinal) } })
-                Tab.RECORDS -> RecordsScreen(isActive = pager.currentPage == page, openTodayRequest = recordTodayRequest)
-                Tab.PROGRESS -> ProgressScreen()
-                Tab.MEALS -> MealsScreen()
-            }
-        }
-    }
-}
-
-@Composable
-private fun ComingSoon(title: String, desc: String, @DrawableRes icon: Int) {
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-        Text(title, style = MaterialTheme.typography.headlineLarge)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Icon(
-                    painterResource(icon),
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text("준비 중", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    desc,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
+                Tab.HOME -> HomeScreen(onEditProfile = onEditProfile, onOpenSettings = onOpenSettings, onNavigate = ::navigate)
+                Tab.MEALS -> MealsScreen(openAddRequest = addMealRequest)
+                Tab.FASTING -> FastingScreen()
+                Tab.STEPS -> StepsScreen()
+                Tab.RECORDS -> RecordsHub(isActive = pager.currentPage == page,
+                    request = recordsRequest, requestedSection = section, requestedMetric = metric, openTodayRequest = dayRequest)
             }
         }
     }

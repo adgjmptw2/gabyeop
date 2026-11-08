@@ -48,7 +48,7 @@ class FastGoalWorker @AssistedInject constructor(
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "단식 알림", NotificationManager.IMPORTANCE_DEFAULT))
         val intent = Intent(applicationContext, MainActivity::class.java)
-            .putExtra(MainActivity.EXTRA_MEALS, true)
+            .putExtra(MainActivity.EXTRA_FASTING, true)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pending = PendingIntent.getActivity(applicationContext, 11, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

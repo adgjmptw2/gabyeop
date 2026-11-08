@@ -16,6 +16,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.adgjmptw2.diet.domain.*
 import io.github.adgjmptw2.diet.ui.common.MacroSummary
+import io.github.adgjmptw2.diet.ui.common.MacroGoalSheet
+import io.github.adgjmptw2.diet.ui.common.WaterAmountDialog
+import io.github.adgjmptw2.diet.ui.common.WaterGlassSizeDialog
+import io.github.adgjmptw2.diet.ui.common.WaterControls
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
 import io.github.adgjmptw2.diet.ui.meals.liters
@@ -37,6 +41,9 @@ private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusW
     val memo = draft.memo ?: state.memo
     val note = draft.note ?: state.note
     var tried by rememberSaveable(state.date) { mutableStateOf(false) }
+    var editingWater by rememberSaveable { mutableStateOf(false) }
+    var editingGlass by rememberSaveable { mutableStateOf(false) }
+    var editingGoals by rememberSaveable { mutableStateOf(false) }
     val save by vm.saveState.collectAsStateWithLifecycle()
     val status = save.takeIf { it.date == state.date }
     val requester = remember { FocusRequester() }
@@ -123,10 +130,16 @@ private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusW
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("물 ${liters(state.waterMl)} L", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = { vm.adjustWater(state.date, -state.glassMl) }, enabled = state.waterMl > 0) { Text("−") }
-                TextButton(onClick = { vm.adjustWater(state.date, state.glassMl) }, enabled = state.waterMl < 10_000) { Text("+") }
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text("물", style = MaterialTheme.typography.titleSmall)
+                    TextButton(onClick = { editingWater = true }, enabled = !saving) {
+                        Text("${liters(state.waterMl)} L", style = MaterialTheme.typography.titleMedium.tabularNumbers())
+                    }
+                    WaterControls(state.waterMl, state.glassMl, !saving,
+                        { vm.adjustWater(state.date, -state.glassMl) }, { vm.adjustWater(state.date, state.glassMl) },
+                        { editingGlass = true })
+                }
             }
         }
         items(state.finishedFasts, key = { "fast-${it.id}" }) { fast ->
@@ -147,7 +160,13 @@ private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusW
         item {
             Text("하루 합계 ${Nutrition.total(state.meals).kcal.roundToInt().comma()} kcal",
                 style = MaterialTheme.typography.titleSmall.tabularNumbers())
-            MacroSummary(state.meals)
+            MacroSummary(state.meals, state.macroGoals, state.targetKcal, { editingGoals = true })
         }
     }
+    if (editingWater) WaterAmountDialog(state.date, state.today, state.waterMl,
+        { editingWater = false }, { vm.setWater(state.date, it); editingWater = false })
+    if (editingGlass) WaterGlassSizeDialog(state.glassMl,
+        { editingGlass = false }, { vm.setGlassMl(state.date, it); editingGlass = false })
+    if (editingGoals) MacroGoalSheet(state.macroGoals, state.targetKcal,
+        { editingGoals = false }, { vm.setMacroGoals(state.date, it); editingGoals = false })
 }

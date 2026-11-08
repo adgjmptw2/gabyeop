@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var syncScheduler: SyncScheduler
     private var recordTodayRequest by mutableLongStateOf(0L)
     private var mealsRequest by mutableLongStateOf(0L)
+    private var fastingRequest by mutableLongStateOf(0L)
 
     override fun onStart() {
         super.onStart()
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         recordTodayRequest = savedInstanceState?.getLong("recordTodayRequest") ?: 0L
         mealsRequest = savedInstanceState?.getLong("mealsRequest") ?: 0L
+        fastingRequest = savedInstanceState?.getLong("fastingRequest") ?: 0L
         consumeDestination(intent)
         updateSystemBars(AppTheme.LIGHT)
         setContent {
@@ -46,7 +48,7 @@ class MainActivity : ComponentActivity() {
             SideEffect { updateSystemBars(theme) }
             DietTheme(theme = theme) {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    AppRoot(vm = vm, recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest)
+                    AppRoot(vm = vm, recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest, fastingRequest = fastingRequest)
                 }
             }
         }
@@ -61,20 +63,24 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putLong("recordTodayRequest", recordTodayRequest)
         outState.putLong("mealsRequest", mealsRequest)
+        outState.putLong("fastingRequest", fastingRequest)
         super.onSaveInstanceState(outState)
     }
 
     private fun consumeDestination(intent: Intent) {
-        val serial = maxOf(System.currentTimeMillis(), recordTodayRequest + 1, mealsRequest + 1)
+        val serial = maxOf(System.currentTimeMillis(), recordTodayRequest + 1, mealsRequest + 1, fastingRequest + 1)
         if (intent.getBooleanExtra(EXTRA_RECORD_TODAY, false)) recordTodayRequest = serial
         if (intent.getBooleanExtra(EXTRA_MEALS, false)) mealsRequest = serial
+        if (intent.getBooleanExtra(EXTRA_FASTING, false)) fastingRequest = serial
         intent.removeExtra(EXTRA_RECORD_TODAY)
         intent.removeExtra(EXTRA_MEALS)
+        intent.removeExtra(EXTRA_FASTING)
     }
 
     companion object {
         const val EXTRA_RECORD_TODAY = "open-record-today"
         const val EXTRA_MEALS = "open-meals"
+        const val EXTRA_FASTING = "open-fasting"
     }
 
     private fun updateSystemBars(theme: AppTheme) {

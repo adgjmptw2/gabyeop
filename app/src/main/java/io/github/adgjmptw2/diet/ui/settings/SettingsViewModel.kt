@@ -18,6 +18,7 @@ import io.github.adgjmptw2.diet.data.settings.TrackingStore
 import io.github.adgjmptw2.diet.domain.Calories
 import io.github.adgjmptw2.diet.domain.Goal
 import io.github.adgjmptw2.diet.domain.WaterSettings
+import io.github.adgjmptw2.diet.domain.MacroGoal
 import io.github.adgjmptw2.diet.domain.waterTargetMl
 import io.github.adgjmptw2.diet.ui.common.todayDates
 import java.time.Clock
@@ -46,6 +47,7 @@ data class SettingsState(
 data class RecordSettingsState(
     val recommendedKcal: Int = 0, val calorieTarget: Int? = null, val minimumKcal: Int = 1200,
     val water: WaterSettings = WaterSettings(), val automaticWaterMl: Int = 2000,
+    val macroGoals: MacroGoal = MacroGoal(),
 )
 
 sealed interface SettingsEvent {
@@ -73,12 +75,12 @@ class SettingsViewModel @Inject constructor(
     private val eventChannel = Channel<SettingsEvent>(Channel.BUFFERED)
     val events = eventChannel.receiveAsFlow()
     val googleAvailable = auth.googleSignInAvailable
-    private val recordSettings = combine(profiles.profile, weights.entries, tracking.water, todayDates(clock)) { p, entries, water, today ->
+    private val recordSettings = combine(profiles.profile, weights.entries, tracking.water, todayDates(clock), tracking.macroGoals) { p, entries, water, today, goals ->
         val current = entries.firstOrNull { it.date <= today }?.weightKg ?: p?.startWeightKg ?: 65.0
         val recommended = p?.let { Calories.target(it, current, today,
             Goal.progress(it.startWeightKg, it.targetWeightKg, current).reached).target } ?: 0
         RecordSettingsState(recommended, p?.calorieTarget, p?.let { Calories.minimum(it.sex) } ?: 1200,
-            water, waterTargetMl(current))
+            water, waterTargetMl(current), goals)
     }
     val state = combine(auth.state, tokens.reminder, busy, displayMessage, recordSettings) { account, reminder, working, error, records ->
         SettingsState(account, reminder, working, error, records)
@@ -121,6 +123,7 @@ class SettingsViewModel @Inject constructor(
     fun export() = action { eventChannel.send(SettingsEvent.Share(csv.shareIntent(csv.export()))) }
     fun setCalorieTarget(target: Int?) = action { profiles.setCalorieTarget(target) }
     fun setWater(settings: WaterSettings) = action { tracking.setWater(settings) }
+    fun setMacroGoals(goal: MacroGoal) = action { tracking.setMacroGoals(goal) }
 
     private fun action(block: suspend () -> Unit) {
         if (busy.value) return

@@ -46,15 +46,15 @@ private val GoalDateLabel = DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E)",
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProgressScreen(vm: ProgressViewModel = hiltViewModel()) {
+fun ProgressScreen(vm: ProgressViewModel = hiltViewModel(), showTitle: Boolean = true) {
     val state by vm.state.collectAsStateWithLifecycle()
     val s = state ?: return Box(Modifier.fillMaxSize())
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text("성과", style = MaterialTheme.typography.headlineLarge) }
+        if (showTitle) item { Text("성과", style = MaterialTheme.typography.headlineLarge) }
         item {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 ProgressPeriod.entries.forEachIndexed { index, period ->
@@ -120,7 +120,7 @@ private fun SummaryCard(state: ProgressUiState) {
                 when {
                     lost == null -> MaterialTheme.colorScheme.onSurfaceVariant
                     lost > 0.05 -> MaterialTheme.colorScheme.primary
-                    lost < -0.05 -> MaterialTheme.colorScheme.onSurface
+                    lost < -0.05 -> MaterialTheme.colorScheme.tertiary
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
@@ -133,7 +133,7 @@ private fun SummaryCard(state: ProgressUiState) {
                 },
                 when {
                     monthChange < -0.05 -> MaterialTheme.colorScheme.primary
-                    monthChange > 0.05 -> MaterialTheme.colorScheme.onSurface
+                    monthChange > 0.05 -> MaterialTheme.colorScheme.tertiary
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
