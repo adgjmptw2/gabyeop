@@ -74,7 +74,7 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
         vm.fastingEvents.collect { event ->
             scope.launch {
                 snackbar.currentSnackbarData?.dismiss()
-                if (snackbar.showSnackbar("단식을 끝냈어요", "되돌리기", withDismissAction = true) == SnackbarResult.ActionPerformed)
+                if (snackbar.showSnackbar("단식을 끝냈어요", "되돌리기", withDismissAction = true, duration = androidx.compose.material3.SnackbarDuration.Long) == SnackbarResult.ActionPerformed)
                     vm.undoFinish(event.fast)
             }
         }

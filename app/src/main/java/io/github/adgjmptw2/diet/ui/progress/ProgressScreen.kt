@@ -198,8 +198,7 @@ private fun BadgeCard(badge: BadgeState, modifier: Modifier = Modifier) {
                     progress = { badge.progress.toFloat() },
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                )
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh, gapSize = 0.dp, drawStopIndicator = {})
             }
         }
     }

@@ -26,7 +26,7 @@ from build_foods import ORIGIN_RANK, clean, display_name, fmt, num  # noqa: E402
 UA = {"User-Agent": "Mozilla/5.0"}
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "app/src/main/assets/catalog.db"
-VERSION = "2026-11-09"
+VERSION = "2026-11-09b"
 SETS = {"dish": "15100070", "processed": "15100066", "raw": "15100065"}
 
 
@@ -143,6 +143,11 @@ def main():
         rep = r["FOOD_LV4_NM"] if r["FOOD_LV4_NM"] not in NONE else ""
         add(r["FOOD_CD"], clean(r["FOOD_NM"]), brand_of(r), clean(r["FOOD_LV3_NM"]), clean(rep), kcal,
             num(r["CHOCDF"]), num(r["PROT"]), num(r["FATCE"]), serving, unit, pack, 2)
+
+    # 업체 뒤에 붙은 공장·지역 이름 떼기: '해태제과식품 청주' → 다른 줄에 '해태제과식품'이 있으면 그걸로
+    brands = {o[2] for o in out if o[2]}
+    out = [o if not (o[12] == 2 and " " in o[2] and o[2].rsplit(" ", 1)[0] in brands)
+           else (*o[:2], o[2].rsplit(" ", 1)[0], *o[3:13], skey(o[1], o[2].rsplit(" ", 1)[0])) for o in out]
 
     if OUT.exists():
         OUT.unlink()

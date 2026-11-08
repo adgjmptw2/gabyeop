@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -366,7 +367,7 @@ fun StepsTile(onOpen: () -> Unit, modifier: Modifier = Modifier) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
     val percent = if (state.goal > 0) (state.todaySteps * 100.0 / state.goal).roundToInt() else 0
     Card(
-        modifier = modifier.aspectRatio(1f).clickable(onClick = onOpen),
+        modifier = modifier.heightIn(min = 180.dp).clickable(onClick = onOpen),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {

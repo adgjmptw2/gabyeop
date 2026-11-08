@@ -448,7 +448,8 @@ private fun AmountFields(draft: MealEditorState, vm: MealsViewModel) {
                 }
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 제품(1개·1회 칩)이면 인분 칩은 숨긴다(두 줄이 서로 다른 기준이라 헷갈림)
+        if (draft.portionChoices.isEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val multipliers = if (draft.unitKind.isCount) {
                 listOf(0.5, 1.0, 2.0)
             } else {

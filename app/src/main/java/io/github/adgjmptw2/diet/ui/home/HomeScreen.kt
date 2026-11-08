@@ -50,7 +50,7 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
         tracking.waterEvents.collect { event ->
             scope.launch {
                 snackbar.currentSnackbarData?.dismiss()
-                if (snackbar.showSnackbar("${event.deltaMl}ml 추가했어요", "되돌리기", withDismissAction = true) == SnackbarResult.ActionPerformed)
+                if (snackbar.showSnackbar("${event.deltaMl}ml 추가했어요", "되돌리기", withDismissAction = true, duration = SnackbarDuration.Short) == SnackbarResult.ActionPerformed)
                     tracking.adjustWater(event.date, -event.deltaMl)
             }
         }
@@ -82,7 +82,7 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
                                 style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         LinearProgressIndicator(progress = { s.progress.percent / 100f }, modifier = Modifier.fillMaxWidth().height(3.dp),
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh, gapSize = 0.dp, drawStopIndicator = {})
                         val change = s.weekChangeKg
                         Text(if (change == null) "이번 주 변화 —" else "이번 주 ${if (change > 0) "+" else if (change < 0) "−" else ""}${abs(change).kg()} kg",
                             style = MaterialTheme.typography.bodySmall.tabularNumbers(),
@@ -107,7 +107,7 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
                         }
                         LinearProgressIndicator(progress = { (s.todayKcal / target.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f) },
                             modifier = Modifier.fillMaxWidth().height(3.dp), trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            color = if (s.todayKcal > target) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary)
+                            color = if (s.todayKcal > target) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary, gapSize = 0.dp, drawStopIndicator = {})
                     }
                 }
             }
@@ -139,13 +139,22 @@ private fun WaterTile(state: WaterUiState, ml: Int, subtract: () -> Unit, add: (
     val target = state.settings.targetMl ?: state.automaticTargetMl
     Card(onClick = onOpen, modifier = modifier,
         shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("물", style = MaterialTheme.typography.titleSmall)
-            Text("${liters(ml)} / ${liters(target)} L", style = MaterialTheme.typography.titleMedium.tabularNumbers(),
-                modifier = Modifier.fillMaxWidth().clickable(enabled = state.ready, onClickLabel = "마신 물 수정", onClick = onEdit)
-                    .heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically))
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("물", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                WaterGlassButton(state.settings.glassMl, state.ready, onEditGlass)
+            }
+            Row(Modifier.fillMaxWidth().clickable(enabled = state.ready, onClickLabel = "마신 물 수정", onClick = onEdit)
+                .heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(liters(ml), style = MaterialTheme.typography.headlineSmall.tabularNumbers())
+                Text(" / ${liters(target)} L", style = MaterialTheme.typography.bodyMedium.tabularNumbers(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(4.dp))
+                Icon(painterResource(R.drawable.ic_edit), null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             LinearProgressIndicator(progress = { (ml.toFloat() / target.coerceAtLeast(1)).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(3.dp), trackColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                modifier = Modifier.fillMaxWidth().height(4.dp), trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                gapSize = 0.dp, drawStopIndicator = {})
             WaterControls(ml, state.settings.glassMl, state.ready, subtract, add, onEditGlass, compact = true)
         }
     }

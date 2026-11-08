@@ -149,8 +149,7 @@ private fun NutritionCard(state: MealsUiState) {
             val target = state.targetKcal ?: 0
             LinearProgressIndicator(
                 progress = { if (target > 0) (state.total.kcal / target).toFloat().coerceIn(0f, 1f) else 0f },
-                modifier = Modifier.fillMaxWidth(),
-            )
+                modifier = Modifier.fillMaxWidth(), gapSize = 0.dp, drawStopIndicator = {})
         }
     }
 }
