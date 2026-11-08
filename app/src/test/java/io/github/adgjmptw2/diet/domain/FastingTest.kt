@@ -42,4 +42,12 @@ class FastingTest {
         assertEquals(0f, Fasting.progress(-1, 16), 0f)
         assertEquals(0L, Fasting.elapsedMillis(100, 0))
     }
+    @Test fun startTimeMustBeInPastSevenDays() {
+        val now = 10 * Fasting.MAX_DURATION_MS
+        assertTrue(Fasting.validStart(now, now))
+        assertTrue(Fasting.validStart(now - 3 * Fasting.HOUR_MS - 25 * 60_000, now))
+        assertTrue(Fasting.validStart(now - Fasting.MAX_DURATION_MS, now))
+        assertFalse(Fasting.validStart(now + 60_000, now))
+        assertFalse(Fasting.validStart(now - Fasting.MAX_DURATION_MS - 1, now))
+    }
 }

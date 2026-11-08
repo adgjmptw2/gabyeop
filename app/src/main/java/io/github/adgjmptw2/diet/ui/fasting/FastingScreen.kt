@@ -1,6 +1,5 @@
 package io.github.adgjmptw2.diet.ui.fasting
 
-import android.app.TimePickerDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -67,6 +66,9 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
     var now by remember { mutableLongStateOf(vm.now()) }
     var editingStart by rememberSaveable { mutableStateOf(false) }
     var editingGoal by rememberSaveable { mutableStateOf(false) }
+    // 시작 전에 고른 시작 시각(null = 지금)
+    var plannedStart by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pickingStart by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(active?.id) {
         while (true) { now = vm.now(); delay(1000 - now % 1000) }
     }
@@ -89,7 +91,29 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
             item { FastingRing(active, active?.targetHours ?: state.targetHours, now) }
             if (active == null) {
                 item { GoalChips(state.targetHours, vm::selectTarget, { editingGoal = true }) }
-                item { Button(onClick = start, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("단식 시작") } }
+                item {
+                    val planned = plannedStart?.takeIf { Fasting.validStart(it, now) }
+                    val label = planned?.let {
+                        val at = Instant.ofEpochMilli(it).atZone(vm.zone())
+                        val today = Instant.ofEpochMilli(now).atZone(vm.zone()).toLocalDate()
+                        "${if (at.toLocalDate() == today) "오늘" else at.toLocalDate().format(DayLabel)} ${at.format(timeLabel)}"
+                    } ?: "지금"
+                    Card(onClick = { pickingStart = true }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text("시작 시각", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(label, style = MaterialTheme.typography.titleMedium.tabularNumbers())
+                            Spacer(Modifier.width(6.dp))
+                            Icon(painterResource(R.drawable.ic_edit), "시작 시각 수정", Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    if (planned != null) TextButton(onClick = { plannedStart = null }) { Text("지금 시작으로 바꾸기") }
+                }
+                item { Button(onClick = { start(plannedStart?.takeIf { Fasting.validStart(it, vm.now()) }); plannedStart = null },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("단식 시작") } }
                 item { Text("최근 단식", style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth()) }
                 if (state.recent.isEmpty()) item { Text("기록 없음", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth()) }
@@ -131,7 +155,10 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
     }
     if (editingGoal) FastingGoalDialog(active?.targetHours ?: state.targetHours,
         { editingGoal = false }, { vm.selectTarget(it); editingGoal = false })
-    if (editingStart && active != null) EditStartDialog(active, vm, { editingStart = false })
+    if (editingStart && active != null) StartTimeDialog(active.startAt, vm.now(), vm.zone(), { editingStart = false },
+        { vm.changeStartAt(it); editingStart = false })
+    if (pickingStart && active == null) StartTimeDialog(plannedStart ?: vm.now(), vm.now(), vm.zone(), { pickingStart = false },
+        { plannedStart = it; pickingStart = false })
 }
 
 @Composable
@@ -231,29 +258,6 @@ private fun FastingGoalDialog(hours: Int, onDismiss: () -> Unit, onSave: (Int) -
                 isError = !valid, supportingText = { Text("1~72시간") })
         }
     }, confirmButton = { TextButton(enabled = valid, onClick = { parsed?.let(onSave) }) { Text("저장") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } })
-}
-
-@Composable
-private fun EditStartDialog(active: Fast, vm: TrackingViewModel, onDismiss: () -> Unit) {
-    val start = Instant.ofEpochMilli(active.startAt).atZone(vm.zone())
-    val today = Instant.ofEpochMilli(vm.now()).atZone(vm.zone()).toLocalDate()
-    var offset by rememberSaveable(active.id, active.startAt) { mutableLongStateOf(0) }
-    val date = start.toLocalDate().plusDays(offset)
-    val context = LocalContext.current
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("단식 시작 시각") }, text = {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { offset-- }, enabled = date > today.minusDays(7)) { Text("◀") }
-                Text(date.format(DayLabel), style = MaterialTheme.typography.bodyMedium.tabularNumbers())
-                TextButton(onClick = { offset++ }, enabled = date < today) { Text("▶") }
-            }
-            TextButton(onClick = {
-                TimePickerDialog(context, { _, hour, minute -> vm.changeStart(offset, hour, minute); onDismiss() },
-                    start.hour, start.minute, true).show()
-            }) { Text("시각 선택 · ${start.format(timeLabel)}") }
-        }
-    }, confirmButton = { TextButton(onClick = { vm.changeStart(offset, start.hour, start.minute); onDismiss() }) { Text("저장") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } })
 }
 

@@ -32,8 +32,8 @@ android {
         applicationId = "io.github.adgjmptw2.diet"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
         buildConfigField("String", "API_BASE_URL", buildConfigString(dietConfig("diet.apiBaseUrl")))
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", buildConfigString(dietConfig("diet.googleWebClientId")))
     }

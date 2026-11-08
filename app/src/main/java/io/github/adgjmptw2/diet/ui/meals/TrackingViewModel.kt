@@ -65,7 +65,14 @@ class TrackingViewModel @Inject constructor(
     fun setGlassMl(ml: Int) = action { settings.setGlassMl(ml) }
     fun setMacroGoals(goal: io.github.adgjmptw2.diet.domain.MacroGoal) = action { settings.setMacroGoals(goal) }
     fun selectTarget(hours: Int) = action { settings.setFastingHours(hours); fasts.changeTarget(hours) }
-    fun start() = action { fasts.start(settings.fastingHours.first()) }
+    fun start(startAt: Long? = null) = action { fasts.start(settings.fastingHours.first(), startAt) }
+    fun changeStartAt(startAt: Long) = action {
+        if (fasting.value.active == null) return@action
+        if (!io.github.adgjmptw2.diet.domain.Fasting.validStart(startAt, clock.millis())) {
+            error.value = "시작 시각은 지금부터 7일 전 사이로 골라 주세요"; return@action
+        }
+        fasts.changeStart(startAt)
+    }
     fun finish() = action { fasts.finish()?.let { fastChannel.send(TrackingEvent.FastFinished(it)) } }
     fun undoFinish(fast: Fast) = action { if (!fasts.undoFinish(fast)) error.value = "단식 기록이 바뀌어 되돌릴 수 없어요" }
     fun now(): Long = clock.millis()

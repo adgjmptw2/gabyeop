@@ -11,13 +11,13 @@ import androidx.core.content.ContextCompat
 import io.github.adgjmptw2.diet.ui.meals.TrackingViewModel
 
 @Composable
-internal fun rememberStartFastAction(vm: TrackingViewModel): () -> Unit {
+internal fun rememberStartFastAction(vm: TrackingViewModel): (startAt: Long?) -> Unit {
     val context = LocalContext.current
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (!it) vm.notificationDenied()
     }
-    return {
-        vm.start()
+    return { startAt ->
+        vm.start(startAt)
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context,
                 Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             permission.launch(Manifest.permission.POST_NOTIFICATIONS)

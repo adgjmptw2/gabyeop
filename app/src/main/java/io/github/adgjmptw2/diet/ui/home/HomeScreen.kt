@@ -184,7 +184,7 @@ private fun FastingTile(vm: TrackingViewModel, onOpen: () -> Unit) {
                 }
             }
         } else Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-            TextButton(onClick = start, contentPadding = PaddingValues(0.dp)) { Text("단식 시작 · ${state.targetHours}시간") }
+            TextButton(onClick = { start(null) }, contentPadding = PaddingValues(0.dp)) { Text("단식 시작 · ${state.targetHours}시간") }
             val recent = state.recent.firstOrNull()
             Text(recent?.let {
                 val duration = Fasting.elapsedMillis(it.startAt, it.endAt!!)

@@ -20,6 +20,8 @@ object Fasting {
     )
     fun elapsedMillis(startAt: Long, now: Long, endAt: Long? = null): Long =
         ((endAt ?: now) - startAt).coerceAtLeast(0)
+    /** 시작 시각은 지금 이전, 7일 이내만 */
+    fun validStart(startAt: Long, now: Long): Boolean = startAt <= now && now - startAt <= MAX_DURATION_MS
     fun stageIndex(elapsedMillis: Long): Int =
         stages.indexOfLast { elapsedMillis.coerceAtLeast(0) >= it.fromHours * HOUR_MS }.coerceAtLeast(0)
     fun progress(elapsedMillis: Long, targetHours: Int): Float =

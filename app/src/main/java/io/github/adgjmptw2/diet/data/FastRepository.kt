@@ -14,11 +14,13 @@ class FastRepository @Inject constructor(private val db: DietDatabase, private v
     val entries = db.fastDao().observeAll().map { rows ->
         rows.map { Fast(it.id, it.startAt, it.endAt, it.targetHours, it.updatedAt, it.deleted) }
     }
-    suspend fun start(targetHours: Int) = db.withTransaction {
+    /** startAt이 없으면 지금. 지금 이후·7일 넘게 전이면 지금으로 */
+    suspend fun start(targetHours: Int, startAt: Long? = null) = db.withTransaction {
         require(targetHours in Fasting.TARGET_HOURS)
         if (db.fastDao().active() != null) return@withTransaction
         val now = clock.millis()
-        db.fastDao().upsert(FastEntity(UUID.randomUUID().toString(), now, null, targetHours, now))
+        val begin = startAt?.takeIf { Fasting.validStart(it, now) } ?: now
+        db.fastDao().upsert(FastEntity(UUID.randomUUID().toString(), begin, null, targetHours, now))
     }
     suspend fun finish() = db.withTransaction {
         val row = db.fastDao().active() ?: return@withTransaction null
