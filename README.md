@@ -3,52 +3,60 @@
 체중과 식단을 기록하고, 목표까지 얼마나 왔는지 한눈에 보는 안드로이드 앱입니다.
 로그인 없이 바로 쓸 수 있고, 원하면 Google 계정으로 백업하고 여러 기기에서 이어 쓸 수 있습니다.
 
+**[APK 내려받기 (최신 버전)](https://github.com/adgjmptw2/gabyeop/releases/latest)**
+
 <p>
   <img src="docs/screenshots/home.jpg" width="200" alt="홈">
-  <img src="docs/screenshots/records-month.jpg" width="200" alt="기록·월">
-  <img src="docs/screenshots/records-day.jpg" width="200" alt="기록·일">
+  <img src="docs/screenshots/fasting.jpg" width="200" alt="단식">
   <img src="docs/screenshots/meals.jpg" width="200" alt="식단">
+  <img src="docs/screenshots/food-search.jpg" width="200" alt="음식 검색">
 </p>
 <p>
-  <img src="docs/screenshots/fasting.jpg" width="200" alt="단식과 몸 상태">
+  <img src="docs/screenshots/graph.jpg" width="200" alt="기록 그래프">
+  <img src="docs/screenshots/home-dark.jpg" width="200" alt="다크 테마">
   <img src="docs/screenshots/theme-bunny.jpg" width="200" alt="토끼 테마">
-  <img src="docs/screenshots/theme-dark.jpg" width="200" alt="다크 테마">
   <img src="docs/screenshots/theme-ocean.jpg" width="200" alt="오션 테마">
 </p>
 
 ## 기능
 
-- **홈**: 현재 체중, 감량한 양, 목표까지 남은 무게와 진행률, 하루 목표 칼로리, 진행 중인 단식
-- **기록**: 달력(일·주·월, 기본 월)에서 날마다 체중과 메모를 봅니다. 하루 보기에서 체중·체지방률·메모를 기록하고 그날 식단과 탄수화물·단백질·지방을 봅니다.
-  - BMI는 키와 체중으로 자동 계산(대한비만학회 구간)
-  - 체지방률은 직접 입력. 비워 두면 Deurenberg 식 추정치를 보여 주기만 하고 저장하지 않습니다.
-- **성과**: 체중 곡선(7일 평균선), 체지방률 곡선, 최근 4주 추세로 계산한 목표 도달 예상일, 배지
-- **식단**: 식약처 음식 영양성분 데이터 1만 7천여 개 검색(인터넷 없이), 음식별 이모지 자동 표시, 사진 첨부
-  - 즐겨찾기, 내 음식(브랜드·맛, 팩·개·g·ml 단위)
-  - 탄수화물·단백질·지방을 g과 열량 비율(%)로 표시
-  - 물: 한 번 눌러 한 잔씩, 목표는 체중으로 자동 계산하거나 직접 입력
-  - 단식 타이머: 시작·끝내기, 시작 시각 고치기, 지난 시간에 따른 몸 상태 6구간(그림), 목표 시간 알림
-- **하루 목표 칼로리**: 기본은 Mifflin-St Jeor로 계산한 권장량, 설정에서 직접 정해도 권장량을 같이 보여 줍니다.
+아래 탭은 홈 · 식단 · 단식 · 걸음 · 기록 다섯 개입니다.
+
+- **홈**: 하루를 한 화면에 모았습니다. 체중과 목표까지 남은 무게, 오늘 먹은 칼로리, 영양정보(탄수화물·지방·단백질 g / 목표 g), 물, 걸음, 진행 중인 단식을 보여 줍니다. 카드를 누르면 해당 탭이나 그래프로 이동합니다.
+  - 물은 홈에서 바로 `+ 한 잔`으로 추가하고 되돌릴 수 있습니다. 한 잔 크기(50~2,000 ml)와 마신 양은 숫자를 눌러 바로 고칩니다.
+- **식단**: 끼니별 기록, 사진 첨부, 즐겨찾기, 내 음식(브랜드·맛, 팩·개·g·ml 단위)
+  - 식약처 데이터 약 33만 개(음식 1만 7천, 원재료 3천 7백, 가공식품 30만)를 인터넷 없이 검색합니다. 제품은 `1개 (100g)`, `1회 (30g)`로 양을 고릅니다.
+  - 검색 결과가 없으면 검색어를 이름에 넣은 채로 직접 입력을 엽니다.
+- **영양정보 목표**: 탄수화물·지방·단백질 하루 목표 g. 직접 정하지 않으면 하루 목표 칼로리의 50:30:20(탄:지:단, 열량 비율)으로 계산한 추천값을 씁니다. 추천값은 목표 설정 화면에서만 보여 줍니다.
+- **단식**: 원형 타이머(구간 그림이 링 위에 표시), 시작·목표 시각 수정, 끝내기 되돌리기, 목표 1~72시간, 지난 시간에 따른 몸 상태 6구간 설명, 목표 시간 알림
+- **걸음**: Health Connect(삼성 헬스·구글 핏 걸음 포함)에서 읽고, 쓸 수 없으면 폰 걸음 센서로 셉니다. 오늘 걸음·목표·대략 거리와 소모 kcal, 최근 1주·1달 막대. 걸음 기록은 기기에만 둡니다.
+- **기록**: 한 탭 안에서 달력 · 그래프 · 성과를 고릅니다.
+  - 달력(일·주·월): 날마다 체중·체지방률·메모. BMI는 키와 체중으로 자동 계산(대한비만학회 구간), 체지방률은 직접 입력하고 비워 두면 Deurenberg 식 추정치만 보여 줍니다.
+  - 그래프: 물·칼로리·걸음을 1주·1달·3달 막대로, 목표선·기록한 날 평균·목표 달성 일수
+  - 성과: 체중 곡선(7일 평균선), 체지방률 곡선, 최근 4주 추세로 계산한 목표 도달 예상일, 배지
+- **하루 목표 칼로리**: 기본은 Mifflin-St Jeor로 계산한 권장량, 설정에서 직접 정할 수 있습니다.
 - **테마**: 라이트·다크·토끼·오션
 - **설정**: 게스트 모드(기기에만 저장) 또는 Google 로그인(서버 백업·동기화), 기록 알림, CSV 내보내기, 기기 기록 지우기, 계정 삭제
-
-물·단식 같은 기능은 화면을 따로 늘리지 않고 기존 탭의 카드 안에서 펼쳐지게 만들었습니다.
 
 ## 구조
 
 ```
 app/      Android 앱 (Kotlin, Jetpack Compose)
 server/   동기화 서버 (Cloudflare Workers + D1, TypeScript)
-tools/    음식 데이터 변환 스크립트 (Python)
+tools/    식품 목록(catalog.db) 만드는 스크립트 (Python)
 store/    스토어 등록 자료
 ```
 
 ### Android
 
-- Kotlin 2.4, Jetpack Compose(Material 3), Hilt, Room, DataStore, WorkManager, OkHttp, kotlinx.serialization
+- Kotlin 2.4, Jetpack Compose(Material 3), Hilt, Room, DataStore, WorkManager, OkHttp, kotlinx.serialization, Health Connect
 - minSdk 26·targetSdk 36
-- 화면 → ViewModel(StateFlow) → Repository → Room. 계산 규칙(칼로리, 진행률, 주간·월간 변화, 추세, 배지, BMI, 탄단지 비율, 물 목표, 단식 구간)은 `domain/`의 순수 함수로 두고 단위 테스트로 확인합니다.
-- 음식 데이터는 앱에 압축해 넣고 처음 실행할 때 Room으로 옮깁니다. 검색은 이름·대표식품명·브랜드를 일치 정도로 정렬하는 SQL 하나로 처리합니다.
+- 화면 → ViewModel(StateFlow) → Repository → Room. 계산 규칙(칼로리, 진행률, 주간·월간 변화, 추세, 배지, BMI, 탄단지 비율·추천 목표, 물 목표, 단식 구간, 그래프 집계, 걸음 거리·kcal)은 `domain/`의 순수 함수로 두고 단위 테스트로 확인합니다.
+- 식품 목록은 읽기 전용 SQLite(`assets/catalog.db`, 약 70MB)로 넣고, 처음 실행할 때 앱 폴더로 한 번 복사해 엽니다. 업데이트로 목록이 바뀌면 다시 복사합니다.
+  - 검색은 이름+업체에서 공백을 뺀 좁은 검색 표만 훑습니다. 검색어를 띄어쓰기로 나눠 모두 포함하는 것을 고르고, 정확히 일치 → 앞부분 일치 → 짧은 이름 순으로 정렬합니다(33만 개에서 PC 기준 약 50ms).
+  - 내 음식은 Room에 두고 항상 맨 앞에 보여 줍니다. 목록 음식을 기록하거나 즐겨찾기하면 그 줄만 Room에 복사해 최근 음식·즐겨찾기가 그대로 동작합니다.
+- 걸음은 Health Connect의 걸음 기록을 날짜별로 합산해 읽습니다. 센서 방식은 부팅 후 누적값을 15분마다(WorkManager) 기록해 날짜별 차이를 더하고, 재부팅으로 값이 줄면 그때부터 다시 셉니다.
+- 1.1 → 1.2 업데이트는 Room 3→4 AutoMigration(칸·표 추가만)과 기존 DataStore 키 유지로 게스트 기록을 그대로 옮깁니다.
 
 ### 로그인과 동기화
 
@@ -68,12 +76,15 @@ store/    스토어 등록 자료
 
 ## 테스트
 
-- 앱 186개: 칼로리·진행률·주간·월간 변화·추세·배지·BMI·탄단지 비율·물·단식 구간 계산, 입력 검증, 동기화 병합과 옛 버전 호환, 계정 바뀜 차단 (`app/src/test`)
+- 앱 224개: 칼로리·진행률·주간·월간 변화·추세·배지·BMI·탄단지 추천 목표·물·단식 구간·그래프 집계·걸음 계산, 식품 검색 정렬과 옛 음식 정리, 입력 검증, 동기화 병합과 옛 버전 호환, 계정 바뀜 차단 (`app/src/test`)
 - 서버 62개: JWT, 갱신 토큰 회전·재사용 감지, 입력 검증, 같은 날 체중 충돌, 단식 충돌, 페이지 나누기, 옛 버전 앱 요청 시 새 항목 보존 (`server/test`)
 
 ## 빌드
 
 ```sh
+# 식품 목록 만들기 (처음 한 번, 공공데이터포털에서 받음 → app/src/main/assets/catalog.db)
+python -I tools/build_catalog.py
+
 # Android (JDK 21)
 ./gradlew :app:testDebugUnitTest
 ./gradlew :app:assembleRelease      # 서명 설정: keystore.properties 경로를 diet.keystoreProperties로 지정
@@ -88,13 +99,14 @@ npm run typecheck && npm test
 
 ## 데이터와 라이선스
 
-- 음식 데이터: 식품의약품안전처 「전국통합식품영양성분정보(음식)표준데이터」(공공데이터포털)
+- 식품 데이터: 식품의약품안전처 「전국통합식품영양성분정보」 음식·가공식품·원재료성식품 표준데이터(공공데이터포털)
 - 글꼴: [Pretendard](https://github.com/orioncactus/pretendard) 서브셋(SIL OFL 1.1, 이름은 AppSans로 바꿈)
 - 토끼 장식과 단식 구간 그림은 이미지 생성 모델로 만들었습니다. 구간 설명은 일반적인 안내이며 의료 조언이 아닙니다.
 - 사용한 라이브러리 목록은 앱의 설정 → 오픈소스·데이터 출처에 있습니다.
 
 ## 개인정보
 
-- 게스트: 기록은 기기에만 저장되고 어디로도 보내지 않습니다. 모든 서버 요청은 Google 로그인 상태에서만 나가도록 한 곳에서 막습니다.
+- 게스트: 기록은 기기에만 저장되고 서버로 보내지 않습니다. 모든 서버 요청은 Google 로그인 상태에서만 나가도록 한 곳에서 막습니다.
+- 걸음 수와 영양정보 목표는 로그인 여부와 상관없이 기기에만 둡니다.
 - Google 로그인: 계정 식별자·이메일과 체중·체지방률·식단·프로필·하루 메모·물·단식을 동기화용으로 저장합니다. 사진은 서버로 올리지 않습니다.
 - 개인정보처리방침: https://gabyeop-api.rlawjdgus2900.workers.dev/privacy
