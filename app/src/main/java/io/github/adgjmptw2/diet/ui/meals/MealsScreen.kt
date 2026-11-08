@@ -49,6 +49,7 @@ import io.github.adgjmptw2.diet.R
 import io.github.adgjmptw2.diet.domain.MealEntry
 import io.github.adgjmptw2.diet.domain.MealType
 import io.github.adgjmptw2.diet.ui.common.DayLabel
+import io.github.adgjmptw2.diet.ui.common.MacroSummary
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.io.File
@@ -88,6 +89,7 @@ fun MealsScreen(vm: MealsViewModel = hiltViewModel()) {
             }
         }
         item { NutritionCard(state) }
+        item { TrackingCards(state.date) }
         state.error?.let { error ->
             item { Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         }
@@ -115,8 +117,10 @@ private fun NutritionCard(state: MealsUiState) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (state.date == state.today) "오늘 먹은 양" else "먹은 양", style = MaterialTheme.typography.titleMedium)
             Text("${state.total.kcal.kcalText()} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
+            val recommendedNote = state.recommendedKcal
+                ?.takeIf { it != state.targetKcal }?.let { " · 권장 ${it.comma()} kcal" } ?: ""
             Text(
-                "목표 ${state.targetKcal?.comma() ?: "—"} kcal",
+                "목표 ${state.targetKcal?.comma() ?: "—"} kcal$recommendedNote",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             val target = state.targetKcal ?: 0
@@ -124,14 +128,7 @@ private fun NutritionCard(state: MealsUiState) {
                 progress = { if (target > 0) (state.total.kcal / target).toFloat().coerceIn(0f, 1f) else 0f },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MacroLabel("탄수화물", state.total.carb, Modifier.weight(1f))
-                MacroLabel("단백질", state.total.prot, Modifier.weight(1f))
-                MacroLabel("지방", state.total.fat, Modifier.weight(1f))
-            }
-            if (state.entries.any { it.carb == null || it.prot == null || it.fat == null }) {
-                Text("영양정보가 있는 음식만 합산해요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            MacroSummary(state.entries)
         }
     }
 }

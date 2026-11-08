@@ -26,6 +26,7 @@ data class ProfileEntity(
     val activity: String,
     val startEpochDay: Long,
     val updatedAt: Long,
+    @ColumnInfo(defaultValue = "NULL") val calorieTarget: Int? = null,
 )
 
 /**
@@ -40,6 +41,7 @@ data class WeightEntryEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val deleted: Boolean = false,
+    @ColumnInfo(defaultValue = "NULL") val bodyFatPct: Double? = null,
 )
 
 /** 공공 음식 데이터를 다시 넣어도 살아 있도록 food 행 밖에 둔다. */
@@ -59,7 +61,42 @@ data class DayNoteEntity(
     val note: String = "",
     val updatedAt: Long,
     val deleted: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val waterMl: Int = 0,
 )
+
+@Entity(tableName = "fast")
+data class FastEntity(
+    @PrimaryKey val id: String,
+    val startAt: Long,
+    val endAt: Long?,
+    val targetHours: Int,
+    val updatedAt: Long,
+    val deleted: Boolean = false,
+)
+
+@Dao
+interface FastDao {
+    @Query("SELECT * FROM fast WHERE deleted = 0 ORDER BY startAt DESC, id")
+    fun observeAll(): Flow<List<FastEntity>>
+
+    @Query("SELECT * FROM fast WHERE deleted = 0 AND endAt IS NULL ORDER BY updatedAt DESC, id DESC LIMIT 1")
+    suspend fun active(): FastEntity?
+
+    @Query("SELECT * FROM fast WHERE deleted = 0 AND endAt IS NULL ORDER BY updatedAt DESC, id DESC")
+    suspend fun activeRows(): List<FastEntity>
+
+    @Query("SELECT * FROM fast WHERE id = :id")
+    suspend fun byId(id: String): FastEntity?
+
+    @Query("SELECT * FROM fast WHERE updatedAt > :since ORDER BY updatedAt, id")
+    suspend fun changedSince(since: Long): List<FastEntity>
+
+    @Query("SELECT * FROM fast WHERE deleted = 0 AND endAt IS NOT NULL ORDER BY endAt")
+    suspend fun exportRows(): List<FastEntity>
+
+    @Upsert
+    suspend fun upsert(row: FastEntity)
+}
 
 @Dao
 interface ProfileDao {
@@ -148,7 +185,7 @@ interface DayNoteDao {
 
 @Database(
     entities = [ProfileEntity::class, WeightEntryEntity::class, FoodEntity::class, MealEntryEntity::class,
-        FavoriteFoodEntity::class, DayNoteEntity::class],
+        FavoriteFoodEntity::class, DayNoteEntity::class, FastEntity::class],
     version = 3,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
@@ -160,4 +197,5 @@ abstract class DietDatabase : RoomDatabase() {
     abstract fun mealDao(): MealDao
     abstract fun favoriteFoodDao(): FavoriteFoodDao
     abstract fun dayNoteDao(): DayNoteDao
+    abstract fun fastDao(): FastDao
 }

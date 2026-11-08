@@ -12,6 +12,15 @@ import io.github.adgjmptw2.diet.data.auth.ReminderSettings
 import io.github.adgjmptw2.diet.data.auth.SignInResult
 import io.github.adgjmptw2.diet.data.auth.TokenStore
 import io.github.adgjmptw2.diet.data.export.CsvExporter
+import io.github.adgjmptw2.diet.data.ProfileRepository
+import io.github.adgjmptw2.diet.data.WeightRepository
+import io.github.adgjmptw2.diet.data.settings.TrackingStore
+import io.github.adgjmptw2.diet.domain.Calories
+import io.github.adgjmptw2.diet.domain.Goal
+import io.github.adgjmptw2.diet.domain.WaterSettings
+import io.github.adgjmptw2.diet.domain.waterTargetMl
+import io.github.adgjmptw2.diet.ui.common.todayDates
+import java.time.Clock
 import io.github.adgjmptw2.diet.data.reminder.ReminderScheduler
 import io.github.adgjmptw2.diet.data.sync.LoginRequiredException
 import kotlinx.coroutines.CancellationException
@@ -30,6 +39,12 @@ data class SettingsState(
     val reminder: ReminderSettings = ReminderSettings(),
     val busy: Boolean = false,
     val message: String? = null,
+    val records: RecordSettingsState = RecordSettingsState(),
+)
+
+data class RecordSettingsState(
+    val recommendedKcal: Int = 0, val calorieTarget: Int? = null, val minimumKcal: Int = 1200,
+    val water: WaterSettings = WaterSettings(), val automaticWaterMl: Int = 2000,
 )
 
 sealed interface SettingsEvent {
@@ -43,14 +58,25 @@ class SettingsViewModel @Inject constructor(
     private val tokens: TokenStore,
     private val reminders: ReminderScheduler,
     private val csv: CsvExporter,
+    private val profiles: ProfileRepository,
+    weights: WeightRepository,
+    private val tracking: TrackingStore,
+    clock: Clock,
 ) : ViewModel() {
     private val busy = MutableStateFlow(false)
     private val message = MutableStateFlow<String?>(null)
     private val eventChannel = Channel<SettingsEvent>(Channel.BUFFERED)
     val events = eventChannel.receiveAsFlow()
     val googleAvailable = auth.googleSignInAvailable
-    val state = combine(auth.state, tokens.reminder, busy, message) { account, reminder, working, error ->
-        SettingsState(account, reminder, working, error)
+    private val recordSettings = combine(profiles.profile, weights.entries, tracking.water, todayDates(clock)) { p, entries, water, today ->
+        val current = entries.firstOrNull { it.date <= today }?.weightKg ?: p?.startWeightKg ?: 65.0
+        val recommended = p?.let { Calories.target(it, current, today,
+            Goal.progress(it.startWeightKg, it.targetWeightKg, current).reached).target } ?: 0
+        RecordSettingsState(recommended, p?.calorieTarget, p?.let { Calories.minimum(it.sex) } ?: 1200,
+            water, waterTargetMl(current))
+    }
+    val state = combine(auth.state, tokens.reminder, busy, message, recordSettings) { account, reminder, working, error, records ->
+        SettingsState(account, reminder, working, error, records)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsState())
 
     fun signIn(context: Context) = action {
@@ -83,6 +109,8 @@ class SettingsViewModel @Inject constructor(
     fun shareFailed() { message.value = "공유할 앱을 열지 못했어요" }
 
     fun export() = action { eventChannel.send(SettingsEvent.Share(csv.shareIntent(csv.export()))) }
+    fun setCalorieTarget(target: Int?) = action { profiles.setCalorieTarget(target) }
+    fun setWater(settings: WaterSettings) = action { tracking.setWater(settings) }
 
     private fun action(block: suspend () -> Unit) {
         if (busy.value) return

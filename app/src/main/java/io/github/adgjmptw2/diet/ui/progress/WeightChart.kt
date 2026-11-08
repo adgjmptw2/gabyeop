@@ -43,18 +43,23 @@ import kotlin.math.roundToInt
 fun WeightChart(
     entries: List<WeightEntry>,
     averages: List<WeightAverage>,
-    targetKg: Double,
+    targetKg: Double?,
     from: LocalDate,
     to: LocalDate,
     periodLabel: String,
     modifier: Modifier = Modifier,
+    unit: String = "kg",
+    metricLabel: String = "체중",
+    connectPoints: Boolean = false,
+    compact: Boolean = false,
 ) {
     val points = remember(entries, from, to) { entries.filter { it.date in from..to }.sortedBy { it.date } }
     val summary = when (points.size) {
-        0 -> "$periodLabel 체중 기록 없음"
-        1 -> "$periodLabel 체중 ${points.first().weightKg.kg()} kg, 기록 1개. 기록 2개부터 추이가 보여요"
-        else -> "$periodLabel ${points.first().weightKg.kg()} kg에서 ${points.last().weightKg.kg()} kg. " +
-            "체중 ${points.size}회 기록. 굵은 선은 7일 평균, 점선은 목표 ${targetKg.kg()} kg"
+        0 -> "$periodLabel $metricLabel 기록 없음"
+        1 -> "$periodLabel $metricLabel ${points.first().weightKg.kg()} $unit, 기록 1개. 기록 2개부터 추이가 보여요"
+        else -> "$periodLabel ${points.first().weightKg.kg()} ${unit}에서 ${points.last().weightKg.kg()} $unit. " +
+            "$metricLabel ${points.size}회 기록." +
+            (if (targetKg != null) " 굵은 선은 7일 평균, 점선은 목표 ${targetKg.kg()} $unit" else "")
     }
     if (points.size <= 1) {
         Box(
@@ -62,7 +67,7 @@ fun WeightChart(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                if (points.isEmpty()) "이 기간의 체중 기록 없음" else "체중 기록 2개부터 추이가 보여요",
+                if (points.isEmpty()) "이 기간의 $metricLabel 기록 없음" else "$metricLabel 기록 2개부터 추이가 보여요",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -72,7 +77,7 @@ fun WeightChart(
 
     val visibleAverages = remember(averages, from, to) { averages.filter { it.date in from..to } }
     val scale = remember(points, visibleAverages, targetKg) {
-        chartScale(points.map { it.weightKg } + visibleAverages.mapNotNull { it.avgKg } + targetKg)
+        chartScale(points.map { it.weightKg } + visibleAverages.mapNotNull { it.avgKg } + listOfNotNull(targetKg))
     }
     val colors = MaterialTheme.colorScheme
     val lineColor = colors.primary
@@ -81,11 +86,11 @@ fun WeightChart(
     val gridColor = colors.outlineVariant
     val labelStyle = MaterialTheme.typography.bodySmall.tabularNumbers().copy(color = colors.onSurfaceVariant)
     val measurer = rememberTextMeasurer()
-    val yLabels = scale.ticks.map { measurer.measure("${it.kg()} kg", labelStyle) }
+    val yLabels = scale.ticks.map { measurer.measure("${it.kg()} $unit", labelStyle) }
     val dateFormat = remember(from, to) { DateTimeFormatter.ofPattern(if (from.year == to.year) "M/d" else "yy/M/d") }
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Canvas(Modifier.fillMaxWidth().height(248.dp).clearAndSetSemantics { contentDescription = summary }) {
+        Canvas(Modifier.fillMaxWidth().height(if (compact) 176.dp else 248.dp).clearAndSetSemantics { contentDescription = summary }) {
             val left = yLabels.maxOf { it.size.width }.toFloat() + 8.dp.toPx()
             val right = size.width - 6.dp.toPx()
             val top = yLabels.maxOf { it.size.height } / 2f + 4.dp.toPx()
@@ -104,7 +109,7 @@ fun WeightChart(
                 val label = yLabels[index]
                 drawText(label, topLeft = Offset(left - label.size.width - 8.dp.toPx(), position - label.size.height / 2f))
             }
-            drawLine(
+            if (targetKg != null) drawLine(
                 color = targetColor,
                 start = Offset(left, y(targetKg)),
                 end = Offset(right, y(targetKg)),
@@ -123,6 +128,14 @@ fun WeightChart(
                 }
             }
             drawPath(path, lineColor, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            if (connectPoints) {
+                val actualPath = Path()
+                points.forEachIndexed { index, entry ->
+                    if (index == 0) actualPath.moveTo(x(entry.date), y(entry.weightKg))
+                    else actualPath.lineTo(x(entry.date), y(entry.weightKg))
+                }
+                drawPath(actualPath, lineColor, style = Stroke(2.dp.toPx()))
+            }
             points.forEach { entry -> drawCircle(pointColor, radius = 3.dp.toPx(), center = Offset(x(entry.date), y(entry.weightKg))) }
 
             val middle = from.plusDays(dayCount / 2)
@@ -137,8 +150,8 @@ fun WeightChart(
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChartLegend("실제 기록", pointColor, kind = 0, modifier = Modifier.weight(1f))
-            ChartLegend("7일 평균", lineColor, kind = 1, modifier = Modifier.weight(1f))
-            ChartLegend("목표 ${targetKg.kg()} kg", targetColor, kind = 2, modifier = Modifier.weight(1f))
+            if (!connectPoints) ChartLegend("7일 평균", lineColor, kind = 1, modifier = Modifier.weight(1f))
+            if (targetKg != null) ChartLegend("목표 ${targetKg.kg()} $unit", targetColor, kind = 2, modifier = Modifier.weight(1f))
         }
     }
 }

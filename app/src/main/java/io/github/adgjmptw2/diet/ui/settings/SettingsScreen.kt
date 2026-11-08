@@ -54,9 +54,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import io.github.adgjmptw2.diet.ui.common.comma
+import io.github.adgjmptw2.diet.ui.meals.liters
 
 private enum class SettingsPage { MAIN, THEME, PRIVACY, LICENSES, FONT }
-private enum class AccountDialog { LINK, LOGOUT, DELETE }
+private enum class AccountDialog { LINK, LOGOUT, DELETE, CALORIE, WATER }
 
 @Composable
 fun SettingsScreen(
@@ -135,6 +137,13 @@ fun SettingsScreen(
                 }
                 SettingsGroup("내 기록") {
                     SettingsRow("내 정보 수정", enabled = !state.busy, onClick = onEditProfile)
+                    SettingsRow("하루 목표 칼로리",
+                        state.records.calorieTarget?.let { "${it.comma()} kcal" }
+                            ?: "권장 ${state.records.recommendedKcal.comma()} kcal",
+                        !state.busy && state.records.recommendedKcal > 0) { dialog = AccountDialog.CALORIE }
+                    SettingsRow("물", "한 잔 ${state.records.water.glassMl} ml · " +
+                        (state.records.water.targetMl?.let { "목표 ${liters(it)} L" }
+                            ?: "자동 ${liters(state.records.automaticWaterMl)} L"), !state.busy) { dialog = AccountDialog.WATER }
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("기록 알림", style = MaterialTheme.typography.bodyLarge)
@@ -153,7 +162,7 @@ fun SettingsScreen(
                         TimePickerDialog(context, { _, hour, minute -> vm.setReminderTime(hour, minute) },
                             state.reminder.hour, state.reminder.minute, DateFormat.is24HourFormat(context)).show()
                     }
-                    SettingsRow("데이터 내보내기", "체중·식단 CSV", !state.busy, onClick = vm::export)
+                    SettingsRow("데이터 내보내기", "체중·식단·메모·단식 CSV", !state.busy, onClick = vm::export)
                 }
                 SettingsGroup("화면") {
                     SettingsRow("테마", LocalAppTheme.current.label, enabled = !state.busy) { page = SettingsPage.THEME }
@@ -198,6 +207,10 @@ fun SettingsScreen(
     }
 
     when (dialog) {
+        AccountDialog.CALORIE -> CalorieTargetDialog(state.records, onDismiss = { dialog = null },
+            onSave = { vm.setCalorieTarget(it); dialog = null })
+        AccountDialog.WATER -> WaterSettingsDialog(state.records, onDismiss = { dialog = null },
+            onSave = { vm.setWater(it); dialog = null })
         AccountDialog.LINK -> AlertDialog(onDismissRequest = { dialog = null },
             title = { Text("Google 계정 연결") },
             text = { Text("연결하면 이 기기의 체중과 식단 기록을 서버에 저장해요. 사진은 이 기기에 남아요") },
@@ -256,9 +269,9 @@ private fun SettingsRow(
 private val LOCAL_PRIVACY = """
     가볍게 개인정보처리방침
 
-    게스트의 체중, 식단, 프로필과 사진은 이 기기에 저장돼요. Google 로그인과 서버 주소가 설정되지 않은 앱은 기록을 서버로 보내지 않아요.
+    게스트의 체중·체지방률, 식단, 하루 메모, 물 섭취량, 단식 기록, 프로필과 사진은 이 기기에 저장돼요. Google 로그인과 서버 주소가 설정되지 않은 앱은 기록을 서버로 보내지 않아요.
 
-    Google 계정을 연결하면 계정 식별자와 이메일을 로그인에 쓰고, 프로필·체중·식단 기록을 서버에 저장해 동기화해요. 사진과 기기 안 사진 경로는 전송하지 않아요. 로그인 토큰은 Android Keystore 키로 암호화해 저장하고 백업에서 제외해요.
+    Google 계정을 연결하면 계정 식별자와 이메일을 로그인에 쓰고, 프로필(하루 목표 칼로리 포함)·체중·체지방률·식단·하루 메모·물 섭취량, 단식 기록을 서버에 저장해 동기화해요. 사진과 기기 안 사진 경로는 전송하지 않아요. 로그인 토큰은 Android Keystore 키로 암호화해 저장하고 백업에서 제외해요.
 
     기기 기록은 Android 백업 설정에 따라 백업될 수 있어요. 내보낸 CSV는 선택한 공유 앱으로 전달돼요.
 

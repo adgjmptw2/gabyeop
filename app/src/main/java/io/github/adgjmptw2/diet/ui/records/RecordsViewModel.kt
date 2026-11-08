@@ -2,117 +2,83 @@ package io.github.adgjmptw2.diet.ui.records
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.adgjmptw2.diet.data.DayNoteRepository
-import io.github.adgjmptw2.diet.data.MealRepository
-import io.github.adgjmptw2.diet.data.WeightRepository
-import io.github.adgjmptw2.diet.domain.DailyNote
-import io.github.adgjmptw2.diet.domain.DayCell
-import io.github.adgjmptw2.diet.domain.MealEntry
-import io.github.adgjmptw2.diet.domain.WeekSummary
-import io.github.adgjmptw2.diet.domain.weekCells
-import io.github.adgjmptw2.diet.domain.weeks
+import io.github.adgjmptw2.diet.data.*
+import io.github.adgjmptw2.diet.data.settings.TrackingStore
+import io.github.adgjmptw2.diet.domain.*
 import io.github.adgjmptw2.diet.ui.common.todayDates
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
+import java.time.Instant
 import javax.inject.Inject
 
 data class RecordDay(val date: LocalDate, val weightKg: Double?, val meals: List<MealEntry>)
 
 data class DayDetailState(
-    val date: LocalDate,
-    val weightKg: Double?,
-    val weightId: String?,
-    val memo: String,
-    val note: String,
-    val meals: List<MealEntry>,
+    val date: LocalDate, val weightKg: Double?, val weightId: String?,
+    val memo: String, val note: String, val meals: List<MealEntry>,
+    val bodyFatPct: Double? = null, val profile: Profile? = null,
+    val waterMl: Int = 0, val glassMl: Int = 250, val finishedFasts: List<Fast> = emptyList(),
 )
 
-/** 하루 상세의 저장 진행·결과. */
-data class DaySaveState(
-    val date: LocalDate? = null,
-    val saving: Boolean = false,
-    val success: Boolean = false,
-    val error: String? = null,
-)
+data class DaySaveState(val date: LocalDate? = null, val saving: Boolean = false,
+    val success: Boolean = false, val error: String? = null)
 
 data class RecordsUiState(
-    val today: LocalDate,
-    val weeks: List<WeekSummary>,
-    val days: Map<LocalDate, RecordDay>,
-    val weekCells: List<DayCell> = emptyList(),
-    val notes: Map<LocalDate, DailyNote> = emptyMap(),
-    val thisWeek: WeekSummary? = null,
+    val today: LocalDate, val weeks: List<WeekSummary>, val days: Map<LocalDate, RecordDay>,
+    val weekCells: List<DayCell> = emptyList(), val notes: Map<LocalDate, DailyNote> = emptyMap(),
+    val thisWeek: WeekSummary? = null, val weights: List<WeightEntry> = emptyList(),
+    val profile: Profile? = null, val fasts: List<Fast> = emptyList(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class RecordsViewModel @Inject constructor(
-    weights: WeightRepository,
-    meals: MealRepository,
-    private val dayNotes: DayNoteRepository,
-    clock: Clock,
+    private val weights: WeightRepository, meals: MealRepository,
+    private val dayNotes: DayNoteRepository, profiles: ProfileRepository,
+    private val tracking: TrackingStore, fasts: FastRepository,
+    private val db: DietDatabase, private val clock: Clock,
 ) : ViewModel() {
-    private val weightsRepository = weights
-    private val mealsRepository = meals
     private val _saveState = MutableStateFlow(DaySaveState())
-    val saveState: StateFlow<DaySaveState> = _saveState.asStateFlow()
+    val saveState = _saveState.asStateFlow()
     private val datedMeals = todayDates(clock).flatMapLatest { today ->
         meals.range(LocalDate.of(1900, 1, 1), today).map { today to it }
     }
-
-    val state: StateFlow<RecordsUiState?> = combine(weights.entries, datedMeals, dayNotes.notes()) { entries, dated, notes ->
-        val (today, meals) = dated
+    val state: StateFlow<RecordsUiState?> = combine(
+        weights.entries, datedMeals, dayNotes.notes(), profiles.profile, fasts.entries,
+    ) { entries, dated, notes, profile, fastRows ->
+        val (today, mealsForDays) = dated
         val dailyWeights = entries.filter { it.date <= today }.distinctBy { it.date }.associateBy { it.date }
-        val dailyMeals = meals.groupBy { it.date }
-        val dailyNotes = notes.values.associateBy { it.date }
-        val days = (dailyWeights.keys + dailyMeals.keys + dailyNotes.keys).associateWith { date ->
+        val dailyMeals = mealsForDays.groupBy { it.date }
+        val days = (dailyWeights.keys + dailyMeals.keys + notes.keys).associateWith { date ->
             RecordDay(date, dailyWeights[date]?.weightKg, dailyMeals[date].orEmpty())
         }
-        val summaries = weeks(entries, meals, today, dailyNotes.keys)
-        val thisWeekStart = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
-        RecordsUiState(
-            today = today,
-            weeks = summaries,
-            days = days,
-            weekCells = weekCells(today, notes.values.toList()),
-            notes = notes,
-            thisWeek = summaries.firstOrNull { it.start == thisWeekStart },
-        )
-    }.flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        val summaries = weeks(entries, mealsForDays, today, notes.filterValues { it.hasTextNotes }.keys)
+        RecordsUiState(today, summaries, days, weekCells(today, notes.values.toList()), notes,
+            summaries.firstOrNull { today in it.start..it.end }, entries, profile, fastRows)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    /** 체중·메모를 함께 저장한다. [weightKg]가 null이고 [weightId]가 있으면 체중을 지운다. */
-    fun saveDay(date: LocalDate, weightKg: Double?, weightId: String?, memo: String, note: String) {
-        if (_saveState.value.saving) return
+    fun saveDay(date: LocalDate, weightKg: Double?, weightId: String?, memo: String, note: String,
+        bodyFatPct: Double? = null) {
+        if (_saveState.value.saving || date > LocalDate.now(clock)) return
         _saveState.value = DaySaveState(date, saving = true)
         viewModelScope.launch {
             try {
-                if (weightKg == null) {
-                    weightId?.let { weightsRepository.delete(it) }
-                } else {
-                    weightsRepository.save(date, weightKg)
+                require(weightKg != null || bodyFatPct == null)
+                db.withTransaction {
+                    if (weightKg == null) weightId?.let { weights.delete(it) }
+                    else weights.save(date, weightKg, bodyFatPct)
+                    dayNotes.save(date, memo, note)
                 }
-                dayNotes.save(date, memo, note)
                 _saveState.value = DaySaveState(date, success = true)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                _saveState.value = DaySaveState(date, error = "저장하지 못했어요")
-            }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { _saveState.value = DaySaveState(date, error = "저장하지 못했어요") }
         }
     }
 
@@ -123,20 +89,22 @@ class RecordsViewModel @Inject constructor(
             try {
                 dayNotes.clear(date)
                 _saveState.value = DaySaveState(date, success = true)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                _saveState.value = DaySaveState(date, error = "메모를 지우지 못했어요")
-            }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { _saveState.value = DaySaveState(date, error = "메모를 지우지 못했어요") }
         }
     }
 
-    fun dayDetail(date: LocalDate): Flow<DayDetailState> = combine(
-        weightsRepository.entries,
-        mealsRepository.day(date),
-        dayNotes.notes(date, date),
-    ) { entries, dayMeals, notes ->
-        val entry = entries.firstOrNull { it.date == date }
-        val dailyNote = notes[date]
-        DayDetailState(date, entry?.weightKg, entry?.id, dailyNote?.memo.orEmpty(), dailyNote?.note.orEmpty(), dayMeals)
+    fun adjustWater(date: LocalDate, delta: Int) = viewModelScope.launch {
+        try { dayNotes.adjustWater(date, delta) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { _saveState.value = DaySaveState(date, error = "물을 저장하지 못했어요") }
+    }
+
+    fun dayDetail(date: LocalDate): Flow<DayDetailState> = combine(state.filterNotNull(), tracking.water) { s, water ->
+        val weight = s.weights.firstOrNull { it.date == date }
+        val note = s.notes[date]
+        DayDetailState(date, weight?.weightKg, weight?.id, note?.memo.orEmpty(), note?.note.orEmpty(),
+            s.days[date]?.meals.orEmpty(), weight?.bodyFatPct, s.profile, note?.waterMl ?: 0, water.glassMl,
+            s.fasts.filter { it.endAt?.let { end -> Instant.ofEpochMilli(end).atZone(clock.zone).toLocalDate() == date } == true })
     }
 }

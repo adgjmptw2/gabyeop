@@ -22,10 +22,12 @@ data class Profile(
     val targetWeightKg: Double,
     val activity: ActivityLevel,
     val startDate: LocalDate,
+    val calorieTarget: Int? = null,
 )
 
 data class WeightEntry(
     val id: String,
     val date: LocalDate,
     val weightKg: Double,
+    val bodyFatPct: Double? = null,
 )

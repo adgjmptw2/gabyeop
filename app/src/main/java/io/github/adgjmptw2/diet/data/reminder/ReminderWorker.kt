@@ -50,6 +50,7 @@ class ReminderWorker @AssistedInject constructor(
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "기록 알림", NotificationManager.IMPORTANCE_DEFAULT))
         val intent = Intent(applicationContext, MainActivity::class.java)
+            .putExtra(MainActivity.EXTRA_RECORD_TODAY, true)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(applicationContext, 10, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

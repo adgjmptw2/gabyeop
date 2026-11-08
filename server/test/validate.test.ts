@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HttpError } from "../src/http";
-import { parseSyncRequest } from "../src/validate";
+import { parseProfile, parseSyncRequest } from "../src/validate";
 
 const validWeight = {
   id: "w1", epochDay: 20_000, weightKg: 68.4,
@@ -14,11 +14,63 @@ const validMeal = {
 };
 
 const validNote = {
+  waterMl: 0,
   epochDay: 20_000, memo: "가볍게 시작", note: "아침은 가볍게 먹었다.",
   updatedAt: 2_000, deleted: false,
 };
 
 describe("sync request validation", () => {
+  it("defaults new fields for older clients", () => {
+    const parsed = parseSyncRequest({ since: 0, weights: [validWeight],
+      notes: [{ epochDay: 20000, memo: "", note: "", updatedAt: 1, deleted: false }] });
+    expect(parsed.weights[0]?.bodyFatPct).toBeNull();
+    expect(parsed.notes[0]?.waterMl).toBe(0);
+    expect(parsed.fasts).toEqual([]);
+  });
+
+  it("validates manual body fat inclusive bounds and null", () => {
+    const parsed = parseSyncRequest({ since: 0, weights: [
+      { ...validWeight, id: "min", bodyFatPct: 3 }, { ...validWeight, id: "max", bodyFatPct: 70 },
+      { ...validWeight, id: "null", bodyFatPct: null }, { ...validWeight, id: "low", bodyFatPct: 2.9 },
+      { ...validWeight, id: "high", bodyFatPct: 70.1 }, { ...validWeight, id: "nan", bodyFatPct: Number.NaN },
+    ] });
+    expect(parsed.weights.map((row) => row.id)).toEqual(["min", "max", "null"]);
+    expect(parsed.rejected).toEqual(["low", "high", "nan"]);
+  });
+
+  it("validates calorie target without requiring it from older profiles", () => {
+    const profile = { sex: "FEMALE", birthYear: 1990, heightCm: 165, startWeightKg: 70,
+      targetWeightKg: 60, activity: "LIGHT", startEpochDay: 20000, updatedAt: 1 };
+    expect(parseProfile(profile).calorieTarget).toBeNull();
+    for (const calorieTarget of [null, 800, 5000]) expect(parseProfile({ ...profile, calorieTarget }).calorieTarget).toBe(calorieTarget);
+    for (const calorieTarget of [799, 5001, 1200.5, "1500", Number.NaN])
+      expect(() => parseProfile({ ...profile, calorieTarget })).toThrow(HttpError);
+  });
+
+  it("validates water as an integer and keeps water-only days", () => {
+    const parsed = parseSyncRequest({ since: 0, notes: [0, 10000, -1, 10001, 250.5, null].map((waterMl, i) =>
+      ({ ...validNote, epochDay: 20000 + i, memo: "", note: "", waterMl })) });
+    expect(parsed.notes.map((row) => row.waterMl)).toEqual([0, 10000]);
+    expect(parsed.notes.map((row) => row.deleted)).toEqual([true, false]);
+    expect(parsed.rejected).toEqual(["n:20002", "n:20003", "n:20004", "n:20005"]);
+  });
+
+  it("validates fasting duration, target hours, and nullable end", () => {
+    const fast = { id: "f", startAt: 1000, endAt: null, targetHours: 16, updatedAt: 2000, deleted: false };
+    const week = 7 * 24 * 3600000;
+    const parsed = parseSyncRequest({ since: 0, fasts: [fast,
+      { ...fast, id: "week", endAt: 1000 + week, targetHours: 72 },
+      { ...fast, id: "short", endAt: 1000, targetHours: 1 },
+      { ...fast, id: "backwards", endAt: 999 },
+      { ...fast, id: "long", endAt: 1001 + week },
+      { ...fast, id: "target", targetHours: 73 },
+      { ...fast, id: "fraction", targetHours: 16.5 },
+    ] });
+    expect(parsed.fasts.map((row) => row.id)).toEqual(["f", "week", "short"]);
+    expect(parsed.rejected).toEqual(["f:backwards", "f:long", "f:target", "f:fraction"]);
+    expect(() => parseSyncRequest({ since: 0, fasts: {} })).toThrow(HttpError);
+    expect(() => parseSyncRequest({ since: 0, notes: Array(2000).fill(validNote), fasts: [fast] })).toThrow(HttpError);
+  });
   it("parses a valid request and defaults absent arrays", () => {
     const parsed = parseSyncRequest({ since: 0, weights: [validWeight], meals: [validMeal], notes: [validNote] });
     expect(parsed.since).toBe(0);

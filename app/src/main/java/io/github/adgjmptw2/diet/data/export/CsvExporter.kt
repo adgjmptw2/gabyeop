@@ -25,6 +25,7 @@ class CsvExporter @Inject constructor(
         val (weights, meals, notes) = db.withTransaction {
             Triple(db.weightDao().exportRows(), db.mealDao().exportRows(), db.dayNoteDao().exportRows())
         }
+        val fasts = db.fastDao().exportRows()
         val directory = File(context.cacheDir, "exports").apply { check(isDirectory || mkdirs()) }
         // A separate folder per export avoids overwriting files already open in another app.
         directory.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 7 * 86_400_000L }
@@ -33,10 +34,11 @@ class CsvExporter @Inject constructor(
         val weightFile = File(runDirectory, "체중.csv")
         val mealFile = File(runDirectory, "식단.csv")
         val noteFile = File(runDirectory, "메모.csv")
+        val fastFile = File(runDirectory, "단식.csv")
         weightFile.bufferedWriter(Charsets.UTF_8).use { writer ->
             writer.write("\uFEFF")
-            writer.append(csvRow("id", "날짜", "체중(kg)", "생성시각(ms)", "수정시각(ms)"))
-            weights.forEach { writer.append(csvRow(it.id, LocalDate.ofEpochDay(it.epochDay), it.weightKg, it.createdAt, it.updatedAt)) }
+            writer.append(csvRow("id", "날짜", "체중(kg)", "체지방률(%)", "생성시각(ms)", "수정시각(ms)"))
+            weights.forEach { writer.append(csvRow(it.id, LocalDate.ofEpochDay(it.epochDay), it.weightKg, it.bodyFatPct, it.createdAt, it.updatedAt)) }
         }
         mealFile.bufferedWriter(Charsets.UTF_8).use { writer ->
             writer.write("\uFEFF")
@@ -47,10 +49,15 @@ class CsvExporter @Inject constructor(
         }
         noteFile.bufferedWriter(Charsets.UTF_8).use { writer ->
             writer.write("\uFEFF")
-            writer.append(csvRow("날짜", "한 줄 메모", "자세한 메모", "수정시각(ms)"))
-            notes.forEach { writer.append(csvRow(LocalDate.ofEpochDay(it.epochDay), it.memo, it.note, it.updatedAt)) }
+            writer.append(csvRow("날짜", "한 줄 메모", "자세한 메모", "물(ml)", "수정시각(ms)"))
+            notes.forEach { writer.append(csvRow(LocalDate.ofEpochDay(it.epochDay), it.memo, it.note, it.waterMl, it.updatedAt)) }
         }
-        listOf(weightFile, mealFile, noteFile).map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
+        fastFile.bufferedWriter(Charsets.UTF_8).use { writer ->
+            writer.write("\uFEFF")
+            writer.append(csvRow("id", "시작시각(ms)", "종료시각(ms)", "목표(시간)", "수정시각(ms)"))
+            fasts.forEach { writer.append(csvRow(it.id, it.startAt, it.endAt, it.targetHours, it.updatedAt)) }
+        }
+        listOf(weightFile, mealFile, noteFile, fastFile).map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
     }
 
     fun shareIntent(uris: List<Uri>): Intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {

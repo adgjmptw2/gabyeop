@@ -73,7 +73,7 @@ fun WeekDetailScreen(
 }
 
 @Composable
-private fun DayCard(day: RecordDay, memo: String, onClick: () -> Unit) {
+internal fun DayCard(day: RecordDay, memo: String, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),

@@ -1,249 +1,221 @@
 package io.github.adgjmptw2.diet.ui.records
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.adgjmptw2.diet.domain.DayCell
-import io.github.adgjmptw2.diet.domain.WeekSummary
-import io.github.adgjmptw2.diet.ui.common.absKg
+import io.github.adgjmptw2.diet.domain.*
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
-import io.github.adgjmptw2.diet.ui.theme.GainColor
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToInt
 
+private enum class CalendarView(val label: String) { DAY("일"), WEEK("주"), MONTH("월") }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecordsScreen(isActive: Boolean = true, vm: RecordsViewModel = hiltViewModel()) {
+fun RecordsScreen(isActive: Boolean = true, openTodayRequest: Long = 0, vm: RecordsViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val s = state ?: return Box(Modifier.fillMaxSize())
-    var selectedStart by rememberSaveable { mutableStateOf<Long?>(null) }
-    var selectedDay by rememberSaveable { mutableStateOf<Long?>(null) }
-    BackHandler(enabled = isActive && (selectedDay != null || selectedStart != null)) {
-        if (selectedDay != null) selectedDay = null else selectedStart = null
+    var view by rememberSaveable { mutableStateOf(CalendarView.MONTH) }
+    var dayEpoch by rememberSaveable { mutableLongStateOf(s.today.toEpochDay()) }
+    var monthEpoch by rememberSaveable { mutableLongStateOf(s.today.withDayOfMonth(1).toEpochDay()) }
+    var weekEpoch by rememberSaveable { mutableLongStateOf(s.today.minusDays((s.today.dayOfWeek.value - 1).toLong()).toEpochDay()) }
+    var focusWeight by rememberSaveable { mutableStateOf(false) }
+    var handledRequest by rememberSaveable { mutableLongStateOf(0) }
+    fun openDay(date: LocalDate) {
+        dayEpoch = date.toEpochDay()
+        monthEpoch = date.withDayOfMonth(1).toEpochDay()
+        weekEpoch = date.minusDays((date.dayOfWeek.value - 1).toLong()).toEpochDay()
+        focusWeight = date == s.today && s.days[date]?.weightKg == null
+        view = CalendarView.DAY
     }
-
-    val start = selectedStart?.let(LocalDate::ofEpochDay)
-    val day = selectedDay?.let(LocalDate::ofEpochDay)
-    if (day != null) {
-        val detail by remember(day) { vm.dayDetail(day) }.collectAsStateWithLifecycle(initialValue = null)
-        if (detail != null) DayDetailScreen(detail!!, onBack = { selectedDay = null }, vm = vm)
-        return
-    }
-    if (start != null) {
-        WeekDetailScreen(
-            start = start, state = s, onBack = { selectedStart = null },
-            onDayClick = { selectedDay = it.toEpochDay() },
-        )
-        return
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item { Text("기록", style = MaterialTheme.typography.headlineLarge) }
-        item {
-            ThisWeekCard(
-                cells = s.weekCells, week = s.thisWeek,
-                weights = s.days.mapValues { it.value.weightKg },
-                onDayClick = { selectedDay = it.toEpochDay() },
-            )
+    LaunchedEffect(openTodayRequest) {
+        if (openTodayRequest != 0L && openTodayRequest != handledRequest) {
+            openDay(s.today)
+            handledRequest = openTodayRequest
         }
-        if (s.weeks.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Text(
-                        "기록 없음", modifier = Modifier.padding(24.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+    }
+    BackHandler(enabled = isActive && view == CalendarView.DAY) { view = CalendarView.MONTH }
+    val day = LocalDate.ofEpochDay(dayEpoch).coerceAtMost(s.today)
+    val week = LocalDate.ofEpochDay(weekEpoch)
+    val month = YearMonth.from(LocalDate.ofEpochDay(monthEpoch))
+    Column(Modifier.fillMaxSize()) {
+        Text("기록", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(16.dp))
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            CalendarView.entries.forEachIndexed { index, option ->
+                SegmentedButton(selected = view == option, onClick = { view = option },
+                    shape = SegmentedButtonDefaults.itemShape(index, CalendarView.entries.size)) { Text(option.label) }
+            }
+        }
+        when (view) {
+            CalendarView.MONTH -> LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    CalendarNavigation("${month.year}년 ${month.monthValue}월",
+                        { monthEpoch = month.minusMonths(1).atDay(1).toEpochDay() },
+                        { monthEpoch = month.plusMonths(1).atDay(1).toEpochDay() },
+                        month < YearMonth.from(s.today))
+                }
+                item { MonthGrid(month, s, ::openDay) }
+                item {
+                    val entries = s.weights.filter { YearMonth.from(it.date) == month && it.date <= s.today }.sortedBy { it.date }
+                    val average = entries.takeIf { it.isNotEmpty() }?.map { it.weightKg }?.average()
+                    val change = if (entries.isEmpty()) null else entries.last().weightKg - entries.first().weightKg
+                    Text("기록 ${entries.size}일 · 평균 ${average?.kg() ?: "—"} kg · " +
+                        "${if (month == YearMonth.from(s.today)) "이번 달" else "${month.monthValue}월"} ${signedKg(change)}",
+                        style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            CalendarView.WEEK -> LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    val end = week.plusDays(6)
+                    CalendarNavigation("${week.monthValue}월 ${week.dayOfMonth}일 ~ ${if (end.monthValue != week.monthValue) "${end.monthValue}월 " else ""}${end.dayOfMonth}일",
+                        { weekEpoch = week.minusWeeks(1).toEpochDay() }, { weekEpoch = week.plusWeeks(1).toEpochDay() },
+                        week.plusDays(6) < s.today)
+                }
+                item { ThisWeekCard(week, s, ::openDay) }
+                items((0L..6L).map(week::plusDays).filter { it <= s.today }.reversed(), key = { it.toEpochDay() }) { date ->
+                    DayCard(s.days[date] ?: RecordDay(date, null, emptyList()), s.notes[date]?.memo.orEmpty()) { openDay(date) }
+                }
+                item { Text("주간 목록", style = MaterialTheme.typography.titleMedium) }
+                items(s.weeks, key = { "week-${it.start}" }) { summary ->
+                    Card(onClick = { weekEpoch = summary.start.toEpochDay() },
+                        shape = MaterialTheme.shapes.large,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(weekTitle(summary.start), style = MaterialTheme.typography.titleSmall)
+                            Text("평균 ${summary.avgKg?.kg() ?: "—"} kg · 변화 ${signedKg(summary.changeKg)}",
+                                style = MaterialTheme.typography.bodyMedium.tabularNumbers())
+                            Text("체중 ${summary.weighDays}일 · 식단 ${summary.mealDays}일 · 메모 ${summary.noteDays}일",
+                                style = MaterialTheme.typography.bodySmall)
+                            Text(summary.avgKcal?.let { "하루 평균 ${it.roundToInt().comma()} kcal" } ?: "식단 기록 없음",
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+            CalendarView.DAY -> {
+                CalendarNavigation(day.format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)),
+                    { dayEpoch = day.minusDays(1).toEpochDay(); focusWeight = false },
+                    { dayEpoch = day.plusDays(1).toEpochDay(); focusWeight = day.plusDays(1) == s.today && s.days[s.today]?.weightKg == null },
+                    day < s.today)
+                val detail by remember(day) { vm.dayDetail(day) }.collectAsStateWithLifecycle(initialValue = null)
+                detail?.let {
+                    DayDetailScreen(it, vm = vm,
+                        focusWeight = focusWeight && isActive, onFocused = { focusWeight = false })
                 }
             }
         }
-        items(s.weeks, key = { it.start.toEpochDay() }) { week ->
-            WeekCard(week, onClick = { selectedStart = week.start.toEpochDay() })
+    }
+}
+
+@Composable
+internal fun CalendarNavigation(label: String, previous: () -> Unit, next: () -> Unit, canNext: Boolean) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = previous, modifier = Modifier.semantics { contentDescription = "이전 기간" }) { Text("◀") }
+        Text(label, modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.titleSmall.tabularNumbers())
+        TextButton(onClick = next, enabled = canNext, modifier = Modifier.semantics { contentDescription = "다음 기간" }) { Text("▶") }
+    }
+}
+
+@Composable
+private fun MonthGrid(month: YearMonth, s: RecordsUiState, onDay: (LocalDate) -> Unit) {
+    val offset = month.atDay(1).dayOfWeek.value - 1
+    val cells = ((offset + month.lengthOfMonth() + 6) / 7) * 7
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row {
+            listOf("월", "화", "수", "목", "금", "토", "일").forEach {
+                Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        (0 until cells).chunked(7).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                row.forEach { index ->
+                    val number = index - offset + 1
+                    val date = if (number in 1..month.lengthOfMonth()) month.atDay(number) else null
+                    if (date == null) Box(Modifier.weight(1f).height(68.dp))
+                    else {
+                        val weight = s.days[date]?.weightKg
+                        val enabled = date <= s.today
+                        val colors = MaterialTheme.colorScheme
+                        val color = colors.onSurface.copy(alpha = if (enabled) 1f else 0.35f)
+                        val note = s.notes[date]
+                        val hasNote = note?.hasTextNotes == true
+                        Column(Modifier.weight(1f).heightIn(min = 68.dp).clip(MaterialTheme.shapes.small)
+                            .then(if (date == s.today) Modifier.background(colors.primaryContainer) else Modifier)
+                            .clickable(enabled = enabled) { onDay(date) }
+                            .padding(vertical = 6.dp).semantics {
+                                contentDescription = "${date} ${if (date == s.today) "오늘 " else ""}${weight?.let { "${it.kg()} kg" } ?: "체중 없음"}${if (hasNote) " 메모 있음" else ""}"
+                            }, horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(number.toString(), style = MaterialTheme.typography.labelMedium, color = color)
+                            Text(weight?.kg() ?: "", style = MaterialTheme.typography.labelSmall.tabularNumbers(), color = color)
+                            Box(Modifier.size(4.dp).clip(CircleShape).then(if (hasNote) Modifier.background(colors.primary) else Modifier))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThisWeekCard(start: LocalDate, s: RecordsUiState, onDay: (LocalDate) -> Unit) {
+    val summary = s.weeks.firstOrNull { it.start == start }
+    val notes = s.notes.values.associateBy { it.date }
+    Card(shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(if (s.today in start..start.plusDays(6)) "이번 주" else "주간 요약", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth()) {
+                (0L..6L).forEach { offset ->
+                    val date = start.plusDays(offset)
+                    val note = notes[date]
+                    Column(Modifier.weight(1f).heightIn(min = 72.dp).clickable(enabled = date <= s.today) { onDay(date) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale.KOREAN),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (date == s.today) "오늘" else date.dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall,
+                            color = if (date == s.today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = if (date > s.today) 0.35f else 1f))
+                        Text(s.days[date]?.weightKg?.kg() ?: "", style = MaterialTheme.typography.labelSmall.tabularNumbers())
+                        if (note?.hasTextNotes == true)
+                            Box(Modifier.size(4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                    }
+                }
+            }
+            Text("평균 ${summary?.avgKg?.kg() ?: "—"} kg · 지난주 대비 ${signedKg(summary?.changeKg)}",
+                style = MaterialTheme.typography.bodySmall.tabularNumbers())
         }
     }
 }
 
 internal fun weekTitle(start: LocalDate): String {
     val end = start.plusDays(6)
-    val weekOfMonth = (start.dayOfMonth - 1) / 7 + 1
-    return "${start.monthValue}월 ${weekOfMonth}주 (${start.monthValue}/${start.dayOfMonth}~${end.monthValue}/${end.dayOfMonth})"
+    return "${start.monthValue}/${start.dayOfMonth} ~ ${end.monthValue}/${end.dayOfMonth}"
 }
-
-@Composable
-private fun ThisWeekCard(
-    cells: List<DayCell>,
-    week: WeekSummary?,
-    weights: Map<LocalDate, Double?>,
-    onDayClick: (LocalDate) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("이번 주", style = MaterialTheme.typography.titleMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                cells.forEach { cell ->
-                    WeekDayCell(
-                        cell, weightKg = weights[cell.date], onClick = { onDayClick(cell.date) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            val change = week?.changeKg
-            Text(
-                week?.avgKg?.let { "평균 ${it.kg()} kg" } ?: "평균 체중 없음",
-                style = MaterialTheme.typography.bodyMedium.tabularNumbers(),
-            )
-            Text(
-                when {
-                    week == null -> "이번 주 기록 없음"
-                    change == null -> "지난주와 비교할 기록 없음"
-                    change < -0.05 -> "지난주 대비 ▼${change.absKg()} kg"
-                    change > 0.05 -> "지난주 대비 ▲${change.absKg()} kg"
-                    else -> "지난주와 같음"
-                },
-                style = MaterialTheme.typography.bodySmall.tabularNumbers(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun WeekDayCell(cell: DayCell, weightKg: Double?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val color = if (cell.enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-    val noteDot = cell.hasNote
-    Column(
-        modifier = modifier.heightIn(min = 72.dp)
-            .then(if (cell.enabled) Modifier.clickable(onClick = onClick) else Modifier),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            cell.date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.KOREAN),
-            style = MaterialTheme.typography.labelSmall, color = color,
-        )
-        Text(
-            if (cell.isToday) "오늘" else cell.date.dayOfMonth.toString(),
-            style = MaterialTheme.typography.labelSmall.tabularNumbers(),
-            color = if (cell.isToday) MaterialTheme.colorScheme.primary else color,
-        )
-        Text(
-            weightKg?.kg() ?: "+",
-            style = MaterialTheme.typography.bodySmall.tabularNumbers(),
-            color = if (weightKg != null) color else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-        )
-        if (noteDot) {
-            Box(
-                Modifier.size(4.dp).clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-            )
-        } else {
-            Box(Modifier.size(4.dp))
-        }
-    }
-}
-
-@Composable
-private fun WeekCard(week: WeekSummary, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(weekTitle(week.start), style = MaterialTheme.typography.titleMedium.tabularNumbers())
-            if (week.weighDays == 0 && week.mealDays == 0) {
-                if (week.noteDays > 0) {
-                    Text("메모 ${week.noteDays}일", style = MaterialTheme.typography.bodyMedium.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Text("기록 없음", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("평균 체중", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            week.avgKg?.let { "${it.kg()} kg" } ?: "기록 없음",
-                            style = MaterialTheme.typography.headlineSmall.tabularNumbers(),
-                        )
-                    }
-                    val change = week.changeKg
-                    val text = when {
-                        change == null -> "비교 기록 없음"
-                        change < -0.05 -> "▼${change.absKg()} kg"
-                        change > 0.05 -> "▲${change.absKg()} kg"
-                        else -> "변화 없음"
-                    }
-                    val color = when {
-                        change == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                        change < -0.05 -> MaterialTheme.colorScheme.primary
-                        change > 0.05 -> GainColor
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Text(
-                        text, style = MaterialTheme.typography.bodyMedium.tabularNumbers(), color = color,
-                        textAlign = TextAlign.End, modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            Text(
-                "체중 ${week.weighDays}일 · 식단 ${week.mealDays}일" +
-                    if (week.noteDays > 0) " · 메모 ${week.noteDays}일" else "",
-                style = MaterialTheme.typography.bodySmall.tabularNumbers(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                week.avgKcal?.let { "하루 평균 ${it.roundToInt().comma()} kcal" } ?: "식단 기록 없음",
-                style = MaterialTheme.typography.bodyMedium.tabularNumbers(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
+private fun signedKg(value: Double?): String = value?.let {
+    "${if (it > 0) "+" else ""}${it.kg()} kg"
+} ?: "—"

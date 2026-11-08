@@ -72,6 +72,7 @@ class OnboardingViewModel @Inject constructor(
                     targetWeightKg = v.targetWeightKg,
                     activity = v.activity,
                     startDate = prev?.startDate ?: today,
+                    calorieTarget = prev?.calorieTarget,
                 )
                 if (prev == null) profiles.createWithFirstWeight(profile) else profiles.save(profile)
                 onDone()

@@ -31,8 +31,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -124,15 +126,26 @@ class RootViewModel @Inject constructor(
 }
 
 @Composable
-fun AppRoot(vm: RootViewModel = hiltViewModel()) {
+fun AppRoot(vm: RootViewModel = hiltViewModel(), recordTodayRequest: Long = 0, mealsRequest: Long = 0) {
     val state by vm.state.collectAsStateWithLifecycle()
     var editingProfile by rememberSaveable { mutableStateOf(false) }
     var showingSettings by rememberSaveable { mutableStateOf(false) }
+    val mainState = rememberSaveableStateHolder()
+    var handledLaunch by rememberSaveable { mutableLongStateOf(0L) }
+    LaunchedEffect(recordTodayRequest, mealsRequest) {
+        val latest = maxOf(recordTodayRequest, mealsRequest)
+        if (latest > handledLaunch) {
+            showingSettings = false
+            editingProfile = false
+            handledLaunch = latest
+        }
+    }
 
     LaunchedEffect(state) {
         if (state == RootState.WELCOME || state == RootState.NEEDS_SETUP) {
             editingProfile = false
             showingSettings = false
+            mainState.removeState("main")
         }
     }
 
@@ -147,7 +160,10 @@ fun AppRoot(vm: RootViewModel = hiltViewModel()) {
             SettingsScreen(onClose = { showingSettings = false }, onEditProfile = { editingProfile = true },
                 onThemeSelected = vm::setTheme)
         } else {
-            MainScaffold(onEditProfile = { showingSettings = true })
+            mainState.SaveableStateProvider("main") {
+                MainScaffold(onEditProfile = { showingSettings = true },
+                    recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest)
+            }
         }
     }
 
@@ -169,10 +185,18 @@ private enum class Tab(val label: String, @DrawableRes val icon: Int) {
 }
 
 @Composable
-private fun MainScaffold(onEditProfile: () -> Unit) {
+private fun MainScaffold(onEditProfile: () -> Unit, recordTodayRequest: Long, mealsRequest: Long) {
     val tabs = Tab.entries
     val pager = rememberPagerState { tabs.size }
     val scope = rememberCoroutineScope()
+    var handledLaunch by rememberSaveable { mutableLongStateOf(0L) }
+    LaunchedEffect(recordTodayRequest, mealsRequest) {
+        val latest = maxOf(recordTodayRequest, mealsRequest)
+        if (latest > handledLaunch) {
+            pager.scrollToPage(if (recordTodayRequest >= mealsRequest) Tab.RECORDS.ordinal else Tab.MEALS.ordinal)
+            handledLaunch = latest
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -214,8 +238,9 @@ private fun MainScaffold(onEditProfile: () -> Unit) {
             beyondViewportPageCount = 1,
         ) { page ->
             when (tabs[page]) {
-                Tab.HOME -> HomeScreen(onEditProfile = onEditProfile)
-                Tab.RECORDS -> RecordsScreen(isActive = pager.currentPage == page)
+                Tab.HOME -> HomeScreen(onEditProfile = onEditProfile,
+                    onOpenMeals = { scope.launch { pager.animateScrollToPage(Tab.MEALS.ordinal) } })
+                Tab.RECORDS -> RecordsScreen(isActive = pager.currentPage == page, openTodayRequest = recordTodayRequest)
                 Tab.PROGRESS -> ProgressScreen()
                 Tab.MEALS -> MealsScreen()
             }

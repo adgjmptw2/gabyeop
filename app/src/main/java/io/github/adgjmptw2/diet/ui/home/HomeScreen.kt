@@ -1,6 +1,7 @@
 package io.github.adgjmptw2.diet.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.delay
+import io.github.adgjmptw2.diet.domain.Fasting
+import io.github.adgjmptw2.diet.ui.meals.TrackingViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,13 +49,12 @@ import io.github.adgjmptw2.diet.ui.common.ProgressRing
 import io.github.adgjmptw2.diet.ui.common.absKg
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
-import io.github.adgjmptw2.diet.ui.theme.GainColor
 import io.github.adgjmptw2.diet.ui.theme.ThemeDecoration
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import kotlin.math.roundToInt
 
 @Composable
-fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(onEditProfile: () -> Unit, onOpenMeals: () -> Unit = {}, vm: HomeViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val s = state ?: return Box(Modifier.fillMaxSize())
 
@@ -66,6 +70,7 @@ fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
             item { Header(s, onEditProfile) }
             item { GoalCard(s) }
             item { CalorieCard(s) }
+            item { ActiveFastingLine(onOpenMeals) }
         }
     }
 }
@@ -169,7 +174,7 @@ private fun GoalStats(s: HomeUiState, modifier: Modifier = Modifier) {
                 color = if (p.lostKg > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
         } else {
-            Stat("시작보다", "+${p.lostKg.absKg()} kg", color = GainColor)
+            Stat("시작보다", "+${p.lostKg.absKg()} kg", color = MaterialTheme.colorScheme.onSurface)
         }
         Stat(
             "목표까지", if (p.reached) "목표 달성" else "${p.remainingKg.kg()} kg",
@@ -190,28 +195,30 @@ private fun Stat(label: String, value: String, color: Color = MaterialTheme.colo
 @Composable
 private fun CalorieCard(s: HomeUiState) {
     val c = s.calories
+    val target = s.profile.calorieTarget ?: c.target
     Card(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("하루 목표 칼로리", style = MaterialTheme.typography.titleMedium)
-            Text("${c.target.comma()} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
+            Text("${target.comma()} kcal", style = MaterialTheme.typography.headlineMedium.tabularNumbers())
             Text(
-                "오늘 먹은 양 ${s.todayKcal.roundToInt().comma()} / 목표 ${c.target.comma()} kcal",
+                "오늘 먹은 양 ${s.todayKcal.roundToInt().comma()} / 목표 ${target.comma()} kcal",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             LinearProgressIndicator(
-                progress = { if (c.target > 0) (s.todayKcal / c.target).toFloat().coerceIn(0f, 1f) else 0f },
+                progress = { if (target > 0) (s.todayKcal / target).toFloat().coerceIn(0f, 1f) else 0f },
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "기초대사량 ${c.bmr.comma()} · 활동 포함 ${c.tdee.comma()}",
+                (if (s.profile.calorieTarget != null) "권장 ${c.target.comma()} · " else "") +
+                    "기초대사량 ${c.bmr.comma()} · 활동 포함 ${c.tdee.comma()}",
                 style = MaterialTheme.typography.bodySmall.tabularNumbers(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (c.raisedToMinimum) {
+            if (c.raisedToMinimum && s.profile.calorieTarget == null) {
                 Text(
                     "최소 섭취량에 맞춘 값이에요",
                     style = MaterialTheme.typography.bodySmall,
@@ -220,4 +227,17 @@ private fun CalorieCard(s: HomeUiState) {
             }
         }
     }
+}
+
+@Composable
+private fun ActiveFastingLine(onOpenMeals: () -> Unit, vm: TrackingViewModel = hiltViewModel()) {
+    val state by vm.fasting.collectAsStateWithLifecycle()
+    val active = state.active ?: return
+    val now by produceState(vm.now(), active.id) {
+        while (true) { value = vm.now(); delay(60_000 - value % 60_000) }
+    }
+    val elapsed = Fasting.elapsedMillis(active.startAt, now)
+    Text("단식 ${Fasting.durationText(elapsed)} · ${Fasting.stages[Fasting.stageIndex(elapsed)].name}",
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenMeals).padding(vertical = 8.dp),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

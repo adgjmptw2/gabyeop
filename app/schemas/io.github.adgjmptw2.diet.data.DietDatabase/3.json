@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "fcd9cdbc35b82667a91299f54db7e85d",
+    "identityHash": "5380bcb480e7091fcaba239d02c585f9",
     "entities": [
       {
         "tableName": "profile",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `sex` TEXT NOT NULL, `birthYear` INTEGER NOT NULL, `heightCm` REAL NOT NULL, `startWeightKg` REAL NOT NULL, `targetWeightKg` REAL NOT NULL, `activity` TEXT NOT NULL, `startEpochDay` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `sex` TEXT NOT NULL, `birthYear` INTEGER NOT NULL, `heightCm` REAL NOT NULL, `startWeightKg` REAL NOT NULL, `targetWeightKg` REAL NOT NULL, `activity` TEXT NOT NULL, `startEpochDay` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `calorieTarget` INTEGER DEFAULT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -61,6 +61,13 @@
             "columnName": "updatedAt",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "calorieTarget",
+            "columnName": "calorieTarget",
+            "affinity": "INTEGER",
+            "notNull": false,
+            "defaultValue": "NULL"
           }
         ],
         "primaryKey": {
@@ -72,7 +79,7 @@
       },
       {
         "tableName": "weight_entry",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `epochDay` INTEGER NOT NULL, `weightKg` REAL NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `deleted` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `epochDay` INTEGER NOT NULL, `weightKg` REAL NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `deleted` INTEGER NOT NULL, `bodyFatPct` REAL DEFAULT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -109,6 +116,13 @@
             "columnName": "deleted",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "bodyFatPct",
+            "columnName": "bodyFatPct",
+            "affinity": "REAL",
+            "notNull": false,
+            "defaultValue": "NULL"
           }
         ],
         "primaryKey": {
@@ -423,7 +437,7 @@
       },
       {
         "tableName": "day_note",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`epochDay` INTEGER NOT NULL, `memo` TEXT NOT NULL DEFAULT '', `note` TEXT NOT NULL DEFAULT '', `updatedAt` INTEGER NOT NULL, `deleted` INTEGER NOT NULL, PRIMARY KEY(`epochDay`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`epochDay` INTEGER NOT NULL, `memo` TEXT NOT NULL DEFAULT '', `note` TEXT NOT NULL DEFAULT '', `updatedAt` INTEGER NOT NULL, `deleted` INTEGER NOT NULL, `waterMl` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`epochDay`))",
         "fields": [
           {
             "fieldPath": "epochDay",
@@ -456,6 +470,13 @@
             "columnName": "deleted",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "waterMl",
+            "columnName": "waterMl",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -464,11 +485,61 @@
             "epochDay"
           ]
         }
+      },
+      {
+        "tableName": "fast",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `startAt` INTEGER NOT NULL, `endAt` INTEGER, `targetHours` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `deleted` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startAt",
+            "columnName": "startAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endAt",
+            "columnName": "endAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "targetHours",
+            "columnName": "targetHours",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deleted",
+            "columnName": "deleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fcd9cdbc35b82667a91299f54db7e85d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5380bcb480e7091fcaba239d02c585f9')"
     ]
   }
 }

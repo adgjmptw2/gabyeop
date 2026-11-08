@@ -12,9 +12,11 @@ data class DailyNote(
     val epochDay: Long,
     val memo: String = "",
     val note: String = "",
+    val waterMl: Int = 0,
 ) {
     val date: LocalDate
         get() = LocalDate.ofEpochDay(epochDay)
+    val hasTextNotes: Boolean get() = memo.isNotBlank() || note.isNotBlank()
 
     companion object {
         fun sanitized(epochDay: Long, memo: String = "", note: String = ""): DailyNote =
@@ -69,7 +71,7 @@ fun weekCells(today: LocalDate, notes: List<DailyNote> = emptyList()): List<DayC
 
 fun combineNotes(cells: List<DayCell>, notes: List<DailyNote>): List<DayCell> {
     val notesByDay = notes
-        .filterNot { isDaySummaryEmpty(it) }
+        .filter { it.hasTextNotes }
         .associateBy { it.epochDay }
 
     return cells.map { cell ->
@@ -86,7 +88,7 @@ fun combineNotes(cells: List<DayCell>, notes: List<DailyNote>): List<DayCell> {
 }
 
 fun isDaySummaryEmpty(dailyNote: DailyNote?): Boolean =
-    dailyNote == null || (dailyNote.memo.isBlank() && dailyNote.note.isBlank())
+    dailyNote == null || (!dailyNote.hasTextNotes && dailyNote.waterMl == 0)
 
 fun isDaySummaryEmpty(memo: String, note: String): Boolean =
     memo.isBlank() && note.isBlank()

@@ -2,11 +2,15 @@ package io.github.adgjmptw2.diet.data.sync
 
 import io.github.adgjmptw2.diet.data.MealEntryEntity
 import io.github.adgjmptw2.diet.data.DayNoteEntity
+import io.github.adgjmptw2.diet.data.FastEntity
 import io.github.adgjmptw2.diet.data.ProfileEntity
 import io.github.adgjmptw2.diet.data.WeightEntryEntity
 
 /** Equal timestamps keep the device row; incoming timestamps are never rewritten. */
 object MergeRules {
+    fun fast(local: FastEntity?, incoming: FastEntity): FastEntity? =
+        incoming.takeIf { local == null || it.updatedAt > local.updatedAt }
+
     fun profile(local: ProfileEntity?, incoming: ProfileEntity): ProfileEntity? =
         incoming.takeIf { local == null || it.updatedAt > local.updatedAt }
 

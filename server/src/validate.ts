@@ -1,5 +1,5 @@
 import { HttpError, isObject } from "./http";
-import type { SyncMeal, SyncNote, SyncProfile, SyncWeight } from "./types";
+import type { SyncFast, SyncMeal, SyncNote, SyncProfile, SyncWeight } from "./types";
 
 export const MAX_ROWS = 2_000;
 export const MIN_EPOCH_DAY = -25_567;
@@ -21,6 +21,7 @@ export interface ParsedSync {
   weights: SyncWeight[];
   meals: SyncMeal[];
   notes: SyncNote[];
+  fasts: SyncFast[];
   rejected: string[];
 }
 
@@ -29,19 +30,21 @@ export function parseSyncRequest(body: Record<string, unknown>): ParsedSync {
   if (!Number.isSafeInteger(since)) throw new HttpError(400, "since");
   const profile = body.profile === undefined || body.profile === null ? null : parseProfile(body.profile);
   // Count raw rows so many rejected rows cannot bypass the request size limit.
-  const rawRows = [body.weights, body.meals, body.notes]
+  const rawRows = [body.weights, body.meals, body.notes, body.fasts]
     .reduce<number>((total, value) => total + (Array.isArray(value) ? value.length : 0), 0);
   if (rawRows > MAX_ROWS) throw new HttpError(413, "too_many_rows");
   const weights = parseRows(body.weights, "weights", parseWeight);
   const meals = parseRows(body.meals, "meals", parseMeal);
   const notes = parseRows(body.notes, "notes", parseNote, noteId);
+  const fasts = parseRows(body.fasts, "fasts", parseFast, fastId);
   return {
     since,
     profile,
     weights: weights.items,
     meals: meals.items,
     notes: notes.items,
-    rejected: [...weights.rejected, ...meals.rejected, ...notes.rejected],
+    fasts: fasts.items,
+    rejected: [...weights.rejected, ...meals.rejected, ...notes.rejected, ...fasts.rejected],
   };
 }
 
@@ -56,6 +59,7 @@ export function parseProfile(value: unknown): SyncProfile {
   const targetWeightKg = finiteNumber(value.targetWeightKg, "invalid_profile", 20, 400);
   const startEpochDay = integer(value.startEpochDay, "invalid_profile", MIN_EPOCH_DAY, MAX_EPOCH_DAY);
   const updatedAt = integer(value.updatedAt, "invalid_profile", 0, MAX_TIME);
+  const calorieTarget = value.calorieTarget == null ? null : integer(value.calorieTarget, "invalid_profile", 800, 5000);
   return {
     sex,
     birthYear,
@@ -64,6 +68,7 @@ export function parseProfile(value: unknown): SyncProfile {
     targetWeightKg,
     activity,
     startEpochDay,
+    calorieTarget,
     updatedAt,
   };
 }
@@ -102,6 +107,23 @@ function rowId(row: unknown): string {
   return "invalid";
 }
 
+function fastId(row: unknown): string {
+  const id = rowId(row);
+  return id === "invalid" ? id : `f:${id}`;
+}
+
+function parseFast(value: unknown): SyncFast {
+  if (!isObject(value)) throw new Error("invalid row");
+  const id = stringValue(value.id, "invalid_fast", MAX_ID_LENGTH);
+  const startAt = integer(value.startAt, "invalid_fast", 0, MAX_TIME);
+  const endAt = value.endAt == null ? null : integer(value.endAt, "invalid_fast", startAt, MAX_TIME);
+  if (endAt !== null && endAt - startAt > 7 * 24 * 3_600_000) throw new Error("invalid duration");
+  const targetHours = integer(value.targetHours, "invalid_fast", 1, 72);
+  const updatedAt = integer(value.updatedAt, "invalid_fast", 0, MAX_TIME);
+  const deleted = booleanValue(value.deleted, "invalid_fast");
+  return { id, startAt, endAt, targetHours, updatedAt, deleted };
+}
+
 /** Notes have no id, so report their day with the same key prefix the client uses. */
 function noteId(row: unknown): string {
   if (isObject(row) && typeof row.epochDay === "number" && Number.isSafeInteger(row.epochDay)) {
@@ -118,7 +140,8 @@ function parseWeight(value: unknown): SyncWeight {
   const createdAt = integer(value.createdAt, "invalid_weight", 0, MAX_TIME);
   const updatedAt = integer(value.updatedAt, "invalid_weight", 0, MAX_TIME);
   const deleted = booleanValue(value.deleted, "invalid_weight");
-  return { id, epochDay, weightKg, createdAt, updatedAt, deleted };
+  const bodyFatPct = optionalNumber(value.bodyFatPct, "invalid_weight", 3, 70);
+  return { id, epochDay, weightKg, bodyFatPct, createdAt, updatedAt, deleted };
 }
 
 function parseMeal(value: unknown): SyncMeal {
@@ -165,7 +188,9 @@ function parseNote(value: unknown): SyncNote {
   const note = textValue(value.note, "invalid_note", MAX_NOTE_LENGTH);
   const updatedAt = integer(value.updatedAt, "invalid_note", 0, MAX_TIME);
   const deleted = booleanValue(value.deleted, "invalid_note");
-  return { epochDay, memo, note, updatedAt, deleted };
+  const waterMl = value.waterMl === undefined ? 0 : integer(value.waterMl, "invalid_note", 0, 10_000);
+  return { epochDay, memo, note, waterMl, updatedAt,
+    deleted: deleted || (memo.trim().length === 0 && note.trim().length === 0 && waterMl === 0) };
 }
 
 function stringValue(value: unknown, code: string, maxLength: number): string {

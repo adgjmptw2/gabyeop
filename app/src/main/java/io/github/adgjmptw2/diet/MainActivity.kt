@@ -1,6 +1,9 @@
 package io.github.adgjmptw2.diet
 
 import android.os.Bundle
+import android.content.Intent
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -23,6 +26,8 @@ import android.graphics.Color as AndroidColor
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var syncScheduler: SyncScheduler
+    private var recordTodayRequest by mutableLongStateOf(0L)
+    private var mealsRequest by mutableLongStateOf(0L)
 
     override fun onStart() {
         super.onStart()
@@ -31,6 +36,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recordTodayRequest = savedInstanceState?.getLong("recordTodayRequest") ?: 0L
+        mealsRequest = savedInstanceState?.getLong("mealsRequest") ?: 0L
+        consumeDestination(intent)
         updateSystemBars(AppTheme.LIGHT)
         setContent {
             val vm: RootViewModel = hiltViewModel()
@@ -38,10 +46,35 @@ class MainActivity : ComponentActivity() {
             SideEffect { updateSystemBars(theme) }
             DietTheme(theme = theme) {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    AppRoot(vm = vm)
+                    AppRoot(vm = vm, recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeDestination(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putLong("recordTodayRequest", recordTodayRequest)
+        outState.putLong("mealsRequest", mealsRequest)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun consumeDestination(intent: Intent) {
+        val serial = maxOf(System.currentTimeMillis(), recordTodayRequest + 1, mealsRequest + 1)
+        if (intent.getBooleanExtra(EXTRA_RECORD_TODAY, false)) recordTodayRequest = serial
+        if (intent.getBooleanExtra(EXTRA_MEALS, false)) mealsRequest = serial
+        intent.removeExtra(EXTRA_RECORD_TODAY)
+        intent.removeExtra(EXTRA_MEALS)
+    }
+
+    companion object {
+        const val EXTRA_RECORD_TODAY = "open-record-today"
+        const val EXTRA_MEALS = "open-meals"
     }
 
     private fun updateSystemBars(theme: AppTheme) {

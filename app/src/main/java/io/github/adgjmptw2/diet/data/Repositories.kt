@@ -32,6 +32,14 @@ class ProfileRepository @Inject constructor(
         }
     }
 
+    suspend fun setCalorieTarget(target: Int?) {
+        require(target == null || target in 800..5000)
+        db.withTransaction {
+            val previous = dao.current() ?: return@withTransaction
+            dao.upsert(previous.copy(calorieTarget = target, updatedAt = maxOf(clock.millis(), previous.updatedAt + 1)))
+        }
+    }
+
     /** 처음 설정: 프로필과 시작 체중 기록을 한 번에 저장 */
     suspend fun createWithFirstWeight(profile: Profile) {
         db.withTransaction {
@@ -53,23 +61,30 @@ class WeightRepository @Inject constructor(
     /** 최신 날짜가 앞 */
     val entries: Flow<List<WeightEntry>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
 
-    suspend fun save(date: LocalDate, weightKg: Double) {
+    suspend fun save(date: LocalDate, weightKg: Double, bodyFatPct: Double? = null) {
+        require(weightKg.isFinite() && weightKg in 30.0..300.0)
+        require(bodyFatPct == null || (bodyFatPct.isFinite() && bodyFatPct in 3.0..70.0))
         db.withTransaction {
             val now = clock.millis()
             val existing = dao.findByDay(date.toEpochDay())
-            val row = existing?.copy(weightKg = weightKg, updatedAt = now, deleted = false)
+            val row = existing?.copy(weightKg = weightKg, bodyFatPct = bodyFatPct,
+                updatedAt = maxOf(now, existing.updatedAt + 1), deleted = false)
                 ?: WeightEntryEntity(
                     id = UUID.randomUUID().toString(),
                     epochDay = date.toEpochDay(),
                     weightKg = weightKg,
                     createdAt = now,
                     updatedAt = now,
+                    bodyFatPct = bodyFatPct,
                 )
             dao.upsert(row)
         }
     }
 
-    suspend fun delete(id: String) = dao.markDeleted(id, clock.millis())
+    suspend fun delete(id: String) = db.withTransaction {
+        val existing = dao.byId(id) ?: return@withTransaction
+        dao.markDeleted(id, maxOf(clock.millis(), existing.updatedAt + 1))
+    }
 }
 
 private fun ProfileEntity.toDomain() = Profile(
@@ -80,6 +95,7 @@ private fun ProfileEntity.toDomain() = Profile(
     targetWeightKg = targetWeightKg,
     activity = runCatching { ActivityLevel.valueOf(activity) }.getOrDefault(ActivityLevel.SEDENTARY),
     startDate = LocalDate.ofEpochDay(startEpochDay),
+    calorieTarget = calorieTarget,
 )
 
 private fun Profile.toEntity(now: Long) = ProfileEntity(
@@ -91,6 +107,7 @@ private fun Profile.toEntity(now: Long) = ProfileEntity(
     activity = activity.name,
     startEpochDay = startDate.toEpochDay(),
     updatedAt = now,
+    calorieTarget = calorieTarget,
 )
 
-private fun WeightEntryEntity.toDomain() = WeightEntry(id, LocalDate.ofEpochDay(epochDay), weightKg)
+private fun WeightEntryEntity.toDomain() = WeightEntry(id, LocalDate.ofEpochDay(epochDay), weightKg, bodyFatPct)

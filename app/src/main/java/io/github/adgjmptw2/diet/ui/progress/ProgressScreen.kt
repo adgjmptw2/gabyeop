@@ -38,7 +38,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.adgjmptw2.diet.domain.BadgeState
 import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.common.absKg
-import io.github.adgjmptw2.diet.ui.theme.GainColor
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -78,6 +77,12 @@ fun ProgressScreen(vm: ProgressViewModel = hiltViewModel()) {
                     val periodLabel = s.period.days?.let { "최근 ${it}일" } ?: "전체 기간"
                     Text(periodLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     WeightChart(s.entries, s.averages, s.profile.targetWeightKg, s.from, s.today, periodLabel)
+                    val fatEntries = s.entries.mapNotNull { entry -> entry.bodyFatPct?.let { entry.copy(weightKg = it) } }
+                    if (fatEntries.size >= 2) {
+                        Text("체지방률 추이", style = MaterialTheme.typography.titleSmall)
+                        WeightChart(fatEntries, emptyList(), null, s.from, s.today, periodLabel,
+                            unit = "%", metricLabel = "체지방률", connectPoints = true, compact = true)
+                    }
                 }
             }
         }
@@ -115,7 +120,7 @@ private fun SummaryCard(state: ProgressUiState) {
                 when {
                     lost == null -> MaterialTheme.colorScheme.onSurfaceVariant
                     lost > 0.05 -> MaterialTheme.colorScheme.primary
-                    lost < -0.05 -> GainColor
+                    lost < -0.05 -> MaterialTheme.colorScheme.onSurface
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
@@ -130,7 +135,7 @@ private fun SummaryCard(state: ProgressUiState) {
                 when {
                     monthChange == null -> MaterialTheme.colorScheme.onSurfaceVariant
                     monthChange < -0.05 -> MaterialTheme.colorScheme.primary
-                    monthChange > 0.05 -> GainColor
+                    monthChange > 0.05 -> MaterialTheme.colorScheme.onSurface
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )

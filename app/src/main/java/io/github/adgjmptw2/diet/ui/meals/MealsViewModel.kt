@@ -54,6 +54,7 @@ data class MealsUiState(
     val total: Macro = Macro(0.0, 0.0, 0.0, 0.0),
     val targetKcal: Int? = null,
     val error: String? = null,
+    val recommendedKcal: Int? = null,
 )
 
 data class FoodSearchState(
@@ -193,12 +194,13 @@ class MealsViewModel @Inject constructor(
         weights.entries,
         today,
     ) { day, profile, weightEntries, now ->
-        val target = profile?.let {
+        val recommended = profile?.let {
             val current = weightEntries.firstOrNull { e -> !e.date.isAfter(now) }?.weightKg ?: it.startWeightKg
             val progress = Goal.progress(it.startWeightKg, it.targetWeightKg, current)
             Calories.target(it, current, now, progress.reached).target
         }
-        MealsUiState(day.date, now, day.entries, Nutrition.total(day.entries), target, day.error)
+        MealsUiState(day.date, now, day.entries, Nutrition.total(day.entries),
+            profile?.calorieTarget ?: recommended, day.error, recommended)
     }.catch { e ->
         if (e is CancellationException) throw e
         emit(MealsUiState(selectedDate.value, LocalDate.now(clock), error = "식단을 불러오지 못했어요"))

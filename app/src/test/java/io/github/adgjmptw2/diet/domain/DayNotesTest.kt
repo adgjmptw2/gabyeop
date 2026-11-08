@@ -9,6 +9,12 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 
 class DayNotesTest {
+    @Test fun waterOnlyDayIsNotEmptyAndDoesNotAddAMemoDot() {
+        val day = LocalDate.of(2026, 11, 8)
+        val note = DailyNote(day.toEpochDay(), waterMl = 250)
+        assertFalse(isDaySummaryEmpty(note))
+        assertFalse(weekCells(day, listOf(note)).last().hasNote)
+    }
 
     private val monday = LocalDate.of(2026, 11, 2)
 

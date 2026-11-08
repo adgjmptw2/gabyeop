@@ -6,6 +6,7 @@ export interface Env {
 }
 
 export interface SyncProfile {
+  calorieTarget?: number | null;
   sex: string;
   birthYear: number;
   heightCm: number;
@@ -17,6 +18,7 @@ export interface SyncProfile {
 }
 
 export interface SyncWeight {
+  bodyFatPct?: number | null;
   id: string;
   epochDay: number;
   weightKg: number;
@@ -44,6 +46,7 @@ export interface SyncMeal {
 }
 
 export interface SyncNote {
+  waterMl?: number;
   epochDay: number;
   memo: string;
   note: string;
@@ -52,6 +55,7 @@ export interface SyncNote {
 }
 
 export interface SyncRequest {
+  fasts?: SyncFast[];
   since: number;
   profile: SyncProfile | null;
   weights: SyncWeight[];
@@ -60,6 +64,7 @@ export interface SyncRequest {
 }
 
 export interface SyncResponse {
+  fasts: SyncFast[];
   cursor: number;
   profile: SyncProfile | null;
   weights: SyncWeight[];
@@ -67,4 +72,13 @@ export interface SyncResponse {
   notes: SyncNote[];
   more: boolean;
   rejected: string[];
+}
+
+export interface SyncFast {
+  id: string;
+  startAt: number;
+  endAt: number | null;
+  targetHours: number;
+  updatedAt: number;
+  deleted: boolean;
 }

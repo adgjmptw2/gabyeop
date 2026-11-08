@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectPage, RESPONSE_LIMIT } from "../src/sync";
+import { selectPage, planFasts, RESPONSE_LIMIT } from "../src/sync";
 
 type Weight = { id: string; seq: number };
 type Meal = { id: string; seq: number };
@@ -37,6 +37,29 @@ function noteRow(epochDay: number, seq: number) {
 }
 
 describe("sync page assembly", () => {
+  it("returns body fat, water, and fasting without server-only seq fields", () => {
+    const page = selectPage(null, [{ ...weightRow("w", 1), body_fat_pct: 28.5 }], [],
+      [{ ...noteRow(20000, 2), water_ml: 1250 }], 0, [],
+      [{ id: "f", start_at: 1000, end_at: 16000, target_hours: 16, updated_at: 3, deleted: 0, seq: 3 }]);
+    expect(page.weights[0]?.bodyFatPct).toBe(28.5);
+    expect(page.notes[0]?.waterMl).toBe(1250);
+    expect(page.fasts).toEqual([{ id: "f", startAt: 1000, endAt: 16000, targetHours: 16, updatedAt: 3, deleted: false }]);
+    expect(page.cursor).toBe(3);
+  });
+
+  it("includes fasts in the global page boundary without skipping notes", () => {
+    const weights = Array.from({ length: 1999 }, (_, i) => weightRow("w" + i, i + 1));
+    const fast = { id: "f", start_at: 1000, end_at: null, target_hours: 16, updated_at: 1, deleted: 0, seq: 2000 };
+    const first = selectPage(null, weights, [], [noteRow(20000, 2001)], 0, [], [fast]);
+    expect(first.fasts).toHaveLength(1);
+    expect(first.notes).toEqual([]);
+    expect(first.cursor).toBe(2000);
+    expect(first.more).toBe(true);
+    const next = selectPage(null, [], [], [noteRow(20000, 2001)], first.cursor, [], [fast]);
+    expect(next.notes).toHaveLength(1);
+    expect(next.fasts).toEqual([]);
+    expect(next.more).toBe(false);
+  });
   it("orders changes from different tables by their global seq", () => {
     const page = selectPage(profile(5), [weightRow("w", 2)], [mealRow("m", 9)], [noteRow(20_000, 7)], 0, []);
     expect(page.cursor).toBe(9);
@@ -101,5 +124,20 @@ describe("sync page assembly", () => {
   it("keeps rejected ids in the response", () => {
     const page = selectPage(null, [], [], [], 0, ["bad-1", "bad-2"]);
     expect(page.rejected).toEqual(["bad-1", "bad-2"]);
+  });
+});
+
+describe("fast LWW", () => {
+  const active = { id: "a", startAt: 1000, endAt: null, targetHours: 16, updatedAt: 10, deleted: false, seq: 1 };
+  it("keeps equal revisions and accepts a newer end", () => {
+    expect(planFasts([active], [{ ...active, endAt: 2000 }])).toEqual([]);
+    expect(planFasts([active], [{ ...active, endAt: 2000, updatedAt: 11 }])[0]?.endAt).toBe(2000);
+    expect(planFasts([active], [{ ...active, updatedAt: 11, deleted: true }])[0]?.deleted).toBe(true);
+  });
+  it("resolves simultaneous starts deterministically and returns a tombstone", () => {
+    const plan = planFasts([active], [{ ...active, id: "b" }]);
+    expect(plan.find((row) => row.id === "b")?.deleted).toBe(false);
+    expect(plan.find((row) => row.id === "a")?.deleted).toBe(true);
+    expect(plan.find((row) => row.id === "a")?.updatedAt).toBeGreaterThan(active.updatedAt);
   });
 });

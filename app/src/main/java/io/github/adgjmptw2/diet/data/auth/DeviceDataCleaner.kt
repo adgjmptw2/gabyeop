@@ -4,6 +4,8 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.adgjmptw2.diet.data.DietDatabase
 import io.github.adgjmptw2.diet.data.FoodRepository
+import io.github.adgjmptw2.diet.data.settings.TrackingStore
+import io.github.adgjmptw2.diet.data.reminder.FastGoalScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -17,9 +19,13 @@ class DeviceDataCleaner @Inject constructor(
     private val db: DietDatabase,
     private val tokens: TokenStore,
     private val foods: FoodRepository,
+    private val tracking: TrackingStore,
+    private val fastGoals: FastGoalScheduler,
 ) {
     suspend fun clear() = withContext(Dispatchers.IO) {
         db.clearAllTables()
+        fastGoals.cancel()
+        tracking.clear()
         foods.resetImportState()
         // Photo and export folders are confined to this application's private roots.
         // Keep the live DataStore directory: clearing its preferences is atomic and safe.

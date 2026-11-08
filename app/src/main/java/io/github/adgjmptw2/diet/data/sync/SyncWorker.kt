@@ -72,7 +72,7 @@ class SyncScheduler @Inject constructor(
     private val work get() = WorkManager.getInstance(context)
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
     private var started = false
-    private val observer = object : InvalidationTracker.Observer("profile", "weight_entry", "meal_entry", "day_note") {
+    private val observer = object : InvalidationTracker.Observer("profile", "weight_entry", "meal_entry", "day_note", "fast") {
         override fun onInvalidated(tables: Set<String>) {
             scope.launch {
                 if (!sync.isSyncing.value && tokens.snapshot().state.canSync && sync.hasPendingLocalChanges()) {
