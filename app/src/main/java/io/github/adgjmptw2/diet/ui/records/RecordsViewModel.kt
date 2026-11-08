@@ -38,7 +38,7 @@ class RecordsViewModel @Inject constructor(
     clock: Clock,
 ) : ViewModel() {
     private val datedMeals = todayDates(clock).flatMapLatest { today ->
-        meals.range(LocalDate.MIN, today).map { today to it }
+        meals.range(LocalDate.of(2000, 1, 1), today).map { today to it }
     }
 
     val state: StateFlow<RecordsUiState?> = combine(weights.entries, datedMeals) { entries, (today, meals) ->

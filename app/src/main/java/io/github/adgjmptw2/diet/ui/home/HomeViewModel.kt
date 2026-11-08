@@ -78,7 +78,7 @@ class HomeViewModel @Inject constructor(
 
         /** entries는 최신 날짜가 앞 */
         fun build(profile: Profile, entries: List<WeightEntry>, today: LocalDate, todayKcal: Double = 0.0): HomeUiState {
-            val current = entries.firstOrNull()?.weightKg ?: profile.startWeightKg
+            val current = entries.firstOrNull { !it.date.isAfter(today) }?.weightKg ?: profile.startWeightKg
             val progress = Goal.progress(profile.startWeightKg, profile.targetWeightKg, current)
             val recent = entries.take(RECENT_COUNT).mapIndexed { i, e ->
                 RecentRow(e, entries.getOrNull(i + 1)?.let { weightDiffKg(e.weightKg, it.weightKg) })

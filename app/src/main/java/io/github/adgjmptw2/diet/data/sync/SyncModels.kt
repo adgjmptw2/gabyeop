@@ -20,6 +20,7 @@ data class SyncResponse(
     val weights: List<SyncWeight> = emptyList(),
     val meals: List<SyncMeal> = emptyList(),
     val more: Boolean = false,
+    val rejected: List<String> = emptyList(),
 )
 
 @Serializable

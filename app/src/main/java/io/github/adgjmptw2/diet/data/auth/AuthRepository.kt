@@ -66,6 +66,14 @@ class AuthRepository @Inject constructor(
             session.mutex.withLock {
                 val result = api.signIn(idToken)
                 require(result.user.id.isNotBlank() && result.accessToken.isNotBlank() && result.refreshToken.isNotBlank())
+                val previous = tokens.snapshot().state
+                if (previous.account == AccountType.GOOGLE && previous.userId != null && previous.userId != result.user.id) {
+                    // 이 기기의 기록이 다른 사람 계정에 섞이지 않게, 원래 계정으로만 다시 로그인한다.
+                    try { api.logout(result.refreshToken) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                    return@withLock SignInResult.Failed("처음 쓰던 Google 계정(${previous.email.orEmpty()})으로 로그인해 주세요")
+                }
                 tokens.setGoogle(result.user.id, result.user.email, Tokens(result.accessToken, result.refreshToken))
                 val complete = try {
                     sync.syncLocked()

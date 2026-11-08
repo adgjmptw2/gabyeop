@@ -94,11 +94,15 @@ data class MealEditorState(
         val food = previewFood ?: return null
         val amount = amount ?: return null
         return Nutrition.forAmount(food, amount).takeIf { macro ->
-            macro.kcal.isFinite() && listOfNotNull(macro.carb, macro.prot, macro.fat).all { it.isFinite() }
+            macro.kcal.isFinite() && macro.kcal <= MAX_ENTRY_KCAL &&
+                listOfNotNull(macro.carb, macro.prot, macro.fat).all { it.isFinite() && it <= MAX_ENTRY_KCAL }
         }
     }
     val canSave: Boolean get() = nutrition != null && !photoBusy && !saving
 }
+
+/** 서버가 받는 한 줄 최대치와 같게 맞춘다 */
+private const val MAX_ENTRY_KCAL = 20_000.0
 
 private data class ImportState(val preparing: Boolean = true, val error: String? = null)
 private data class MealDay(val date: LocalDate, val entries: List<MealEntry> = emptyList(), val error: String? = null)
@@ -142,7 +146,7 @@ class MealsViewModel @Inject constructor(
         today,
     ) { day, profile, weightEntries, now ->
         val target = profile?.let {
-            val current = weightEntries.firstOrNull()?.weightKg ?: it.startWeightKg
+            val current = weightEntries.firstOrNull { e -> !e.date.isAfter(now) }?.weightKg ?: it.startWeightKg
             val progress = Goal.progress(it.startWeightKg, it.targetWeightKg, current)
             Calories.target(it, current, now, progress.reached).target
         }
@@ -169,7 +173,18 @@ class MealsViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FoodSearchState())
 
-    init { prepareFoods() }
+    init {
+        prepareFoods()
+        viewModelScope.launch {
+            var previous = selectedDate.value
+            today.collect { now ->
+                if (now != previous) {
+                    if (selectedDate.value == previous) selectedDate.value = now
+                    previous = now
+                }
+            }
+        }
+    }
 
     fun prepareFoods() {
         if (importJob?.isActive == true) return
