@@ -116,6 +116,36 @@ class WeeklyTest {
     }
 
     @Test
+    fun aNoteOnlyWeekAppearsAndCountsItsDays() {
+        val summaries = weeks(
+            emptyList(),
+            emptyList(),
+            monday.plusDays(13),
+            setOf(monday, monday.plusDays(2)),
+        )
+        assertEquals(listOf(monday.plusWeeks(1), monday), summaries.map { it.start })
+        assertEquals(2, summaries.last().noteDays)
+        assertEquals(0, summaries.last().weighDays)
+        assertEquals(0, summaries.last().mealDays)
+        assertNull(summaries.last().avgKg)
+        assertEquals(0, summaries.first().noteDays)
+    }
+
+    @Test
+    fun noteOnlyDaysAfterTodayAreIgnored() {
+        val today = monday.plusDays(2)
+        val summaries = weeks(
+            emptyList(),
+            emptyList(),
+            today,
+            setOf(monday, today, today.plusDays(1)),
+        )
+        // 앞으로의 날(today+1)은 세지 않는다.
+        assertEquals(2, summaries.single().noteDays)
+        assertEquals(monday, summaries.single().start)
+    }
+
+    @Test
     fun inputOrderingDoesNotChangeWeeklyResults() {
         val entries = listOf(insightWeight(monday, 80.0), insightWeight(monday.plusDays(2), 78.0), insightWeight(monday.plusDays(7), 77.0))
         val meals = listOf(insightMeal(monday, 500.0), insightMeal(monday.plusDays(8), 1500.0))

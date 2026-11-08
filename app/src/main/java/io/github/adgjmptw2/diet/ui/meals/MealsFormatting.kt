@@ -16,10 +16,19 @@ internal fun Double.amountText(): String = BigDecimal.valueOf(this)
     .setScale(3, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
 
 internal fun mealNumberInput(text: String): String = text
-    .filter { it in '0'..'9' || it == '.' || it == ',' }.take(10)
+    .filter { it in '0'..'9' || it == '.' || it == ',' }
+    .take(10)
 
 internal fun parseMealAmount(text: String): Double? = text.replace(',', '.').toDoubleOrNull()
     ?.takeIf { it.isFinite() && it > 0.0 && it <= 100_000.0 }
 
+/** 선택 입력인 무게 등. 비워 두면 null이고 잘못된 값도 null이다. */
+internal fun parseOptionalMealAmount(text: String): Double? = text.replace(',', '.').toDoubleOrNull()
+    ?.takeIf { it.isFinite() && it > 0.0 && it <= 100_000.0 }
+
 internal fun parseMealKcal(text: String): Double? = text.replace(',', '.').toDoubleOrNull()
     ?.takeIf { it.isFinite() && it >= 0.0 && it <= 100_000.0 }
+
+/** 내 음식 영양값(1회분 기준). 비워 둘 수 있다. */
+internal fun parseCustomMacro(text: String): Double? = text.replace(',', '.').toDoubleOrNull()
+    ?.takeIf { it.isFinite() && it >= 0.0 && it <= 20_000.0 }

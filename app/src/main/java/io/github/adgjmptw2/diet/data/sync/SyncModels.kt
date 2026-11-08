@@ -1,6 +1,7 @@
 package io.github.adgjmptw2.diet.data.sync
 
 import io.github.adgjmptw2.diet.data.MealEntryEntity
+import io.github.adgjmptw2.diet.data.DayNoteEntity
 import io.github.adgjmptw2.diet.data.ProfileEntity
 import io.github.adgjmptw2.diet.data.WeightEntryEntity
 import kotlinx.serialization.Serializable
@@ -11,6 +12,7 @@ data class SyncRequest(
     val profile: SyncProfile? = null,
     val weights: List<SyncWeight> = emptyList(),
     val meals: List<SyncMeal> = emptyList(),
+    val notes: List<SyncNote> = emptyList(),
 )
 
 @Serializable
@@ -19,6 +21,7 @@ data class SyncResponse(
     val profile: SyncProfile? = null,
     val weights: List<SyncWeight> = emptyList(),
     val meals: List<SyncMeal> = emptyList(),
+    val notes: List<SyncNote> = emptyList(),
     val more: Boolean = false,
     val rejected: List<String> = emptyList(),
 )
@@ -51,7 +54,16 @@ data class SyncMeal(
         carb, prot, fat, null, createdAt, updatedAt, deleted)
 }
 
+@Serializable
+data class SyncNote(
+    val epochDay: Long, val memo: String, val note: String,
+    val updatedAt: Long, val deleted: Boolean,
+) {
+    fun entity() = DayNoteEntity(epochDay, memo, note, updatedAt, deleted)
+}
+
 internal fun ProfileEntity.wire() = SyncProfile(sex, birthYear, heightCm, startWeightKg, targetWeightKg, activity, startEpochDay, updatedAt)
 internal fun WeightEntryEntity.wire() = SyncWeight(id, epochDay, weightKg, createdAt, updatedAt, deleted)
 internal fun MealEntryEntity.wire() = SyncMeal(id, epochDay, mealType, foodId, name, emoji, amount, unit,
     kcal, carb, prot, fat, createdAt, updatedAt, deleted)
+internal fun DayNoteEntity.wire() = SyncNote(epochDay, memo, note, updatedAt, deleted)

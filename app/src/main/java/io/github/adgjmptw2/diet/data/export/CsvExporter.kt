@@ -22,7 +22,9 @@ class CsvExporter @Inject constructor(
     private val db: DietDatabase,
 ) {
     suspend fun export(): List<Uri> = withContext(Dispatchers.IO) {
-        val (weights, meals) = db.withTransaction { db.weightDao().exportRows() to db.mealDao().exportRows() }
+        val (weights, meals, notes) = db.withTransaction {
+            Triple(db.weightDao().exportRows(), db.mealDao().exportRows(), db.dayNoteDao().exportRows())
+        }
         val directory = File(context.cacheDir, "exports").apply { check(isDirectory || mkdirs()) }
         // A separate folder per export avoids overwriting files already open in another app.
         directory.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 7 * 86_400_000L }
@@ -30,6 +32,7 @@ class CsvExporter @Inject constructor(
         val runDirectory = File(directory, UUID.randomUUID().toString()).apply { check(mkdirs()) }
         val weightFile = File(runDirectory, "체중.csv")
         val mealFile = File(runDirectory, "식단.csv")
+        val noteFile = File(runDirectory, "메모.csv")
         weightFile.bufferedWriter(Charsets.UTF_8).use { writer ->
             writer.write("\uFEFF")
             writer.append(csvRow("id", "날짜", "체중(kg)", "생성시각(ms)", "수정시각(ms)"))
@@ -42,7 +45,12 @@ class CsvExporter @Inject constructor(
             meals.forEach { writer.append(csvRow(it.id, LocalDate.ofEpochDay(it.epochDay), it.mealType,
                 it.foodId, it.name, it.emoji, it.amount, it.unit, it.kcal, it.carb, it.prot, it.fat, it.createdAt, it.updatedAt)) }
         }
-        listOf(weightFile, mealFile).map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
+        noteFile.bufferedWriter(Charsets.UTF_8).use { writer ->
+            writer.write("\uFEFF")
+            writer.append(csvRow("날짜", "한 줄 메모", "자세한 메모", "수정시각(ms)"))
+            notes.forEach { writer.append(csvRow(LocalDate.ofEpochDay(it.epochDay), it.memo, it.note, it.updatedAt)) }
+        }
+        listOf(weightFile, mealFile, noteFile).map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
     }
 
     fun shareIntent(uris: List<Uri>): Intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {

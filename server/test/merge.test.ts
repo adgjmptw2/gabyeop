@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { planWeights, preferProfile, type WeightRow } from "../src/merge";
-import type { SyncProfile, SyncWeight } from "../src/types";
+import { planNotes, planWeights, preferProfile, type NoteRow, type WeightRow } from "../src/merge";
+import type { SyncNote, SyncProfile, SyncWeight } from "../src/types";
 
 function weight(id: string, epochDay: number, updatedAt: number, deleted = false): SyncWeight {
   return { id, epochDay, weightKg: 70, createdAt: 1, updatedAt, deleted };
@@ -12,6 +12,14 @@ function stored(id: string, epochDay: number, updatedAt: number, modifiedAt = up
 
 function liveRows(items: ReturnType<typeof planWeights>): string[] {
   return items.filter((item) => !item.row.deleted).map((item) => item.row.id).sort();
+}
+
+function note(epochDay: number, updatedAt: number, memo = "새 메모"): SyncNote {
+  return { epochDay, memo, note: "자세한 메모", updatedAt, deleted: false };
+}
+
+function storedNote(epochDay: number, updatedAt: number, memo = "서버 메모"): NoteRow {
+  return { ...note(epochDay, updatedAt, memo), seq: 1 };
 }
 
 describe("profile LWW", () => {
@@ -91,5 +99,34 @@ describe("weight merge", () => {
     const rowA = plan.find((item) => item.row.id === "a");
     expect(rowA?.row.deleted).toBe(true);
     expect(rowA?.tombstone).toBe(false);
+  });
+});
+
+describe("note merge", () => {
+  it("adds a note for a new day", () => {
+    const plan = planNotes([note(100, 10)], []);
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({ epochDay: 100, memo: "새 메모", updatedAt: 10, deleted: false });
+  });
+
+  it("accepts only a strictly newer update for the same day", () => {
+    expect(planNotes([note(100, 11)], [storedNote(100, 10)])).toHaveLength(1);
+    expect(planNotes([note(100, 9)], [storedNote(100, 10)])).toEqual([]);
+    expect(planNotes([note(100, 10)], [storedNote(100, 10)])).toEqual([]);
+  });
+
+  it("keeps the first row at an equal timestamp when duplicates arrive in one request", () => {
+    const plan = planNotes([
+      { ...note(100, 10), memo: "첫째" },
+      { ...note(100, 11), memo: "둘째" },
+      { ...note(100, 11), memo: "같은 시각" },
+    ], []);
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({ memo: "둘째", updatedAt: 11 });
+  });
+
+  it("persists a soft deletion when it is newer", () => {
+    const plan = planNotes([{ ...note(100, 12), memo: "", note: "", deleted: true }], [storedNote(100, 10)]);
+    expect(plan[0]).toMatchObject({ deleted: true, memo: "", note: "" });
   });
 });

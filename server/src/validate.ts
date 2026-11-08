@@ -1,5 +1,5 @@
 import { HttpError, isObject } from "./http";
-import type { SyncMeal, SyncProfile, SyncWeight } from "./types";
+import type { SyncMeal, SyncNote, SyncProfile, SyncWeight } from "./types";
 
 export const MAX_ROWS = 2_000;
 export const MIN_EPOCH_DAY = -25_567;
@@ -9,6 +9,8 @@ const MAX_ID_LENGTH = 128;
 const MAX_NAME_LENGTH = 200;
 const MAX_EMOJI_LENGTH = 32;
 const MAX_UNIT_LENGTH = 16;
+const MAX_MEMO_LENGTH = 40;
+const MAX_NOTE_LENGTH = 2_000;
 const MEAL_TYPES = new Set(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]);
 const SEXES = new Set(["MALE", "FEMALE"]);
 const ACTIVITIES = new Set(["SEDENTARY", "LIGHT", "MODERATE", "ACTIVE"]);
@@ -18,6 +20,7 @@ export interface ParsedSync {
   profile: SyncProfile | null;
   weights: SyncWeight[];
   meals: SyncMeal[];
+  notes: SyncNote[];
   rejected: string[];
 }
 
@@ -25,17 +28,20 @@ export function parseSyncRequest(body: Record<string, unknown>): ParsedSync {
   const since = finiteNumber(body.since, "since", -MAX_TIME, MAX_TIME);
   if (!Number.isSafeInteger(since)) throw new HttpError(400, "since");
   const profile = body.profile === undefined || body.profile === null ? null : parseProfile(body.profile);
+  // Count raw rows so many rejected rows cannot bypass the request size limit.
+  const rawRows = [body.weights, body.meals, body.notes]
+    .reduce<number>((total, value) => total + (Array.isArray(value) ? value.length : 0), 0);
+  if (rawRows > MAX_ROWS) throw new HttpError(413, "too_many_rows");
   const weights = parseRows(body.weights, "weights", parseWeight);
   const meals = parseRows(body.meals, "meals", parseMeal);
-  if (weights.items.length + meals.items.length > MAX_ROWS) {
-    throw new HttpError(413, "too_many_rows");
-  }
+  const notes = parseRows(body.notes, "notes", parseNote, noteId);
   return {
     since,
     profile,
     weights: weights.items,
     meals: meals.items,
-    rejected: [...weights.rejected, ...meals.rejected],
+    notes: notes.items,
+    rejected: [...weights.rejected, ...meals.rejected, ...notes.rejected],
   };
 }
 
@@ -67,17 +73,19 @@ interface ParsedRows<T> {
   rejected: string[];
 }
 
-function parseRows<T>(value: unknown, field: string, parse: (row: unknown) => T): ParsedRows<T> {
+function parseRows<T>(
+  value: unknown,
+  field: string,
+  parse: (row: unknown) => T,
+  identify: (row: unknown) => string = rowId,
+): ParsedRows<T> {
   if (value === undefined || value === null) return { items: [], rejected: [] };
   if (!Array.isArray(value)) throw new HttpError(400, `invalid_${field}`);
   if (value.length > MAX_ROWS) throw new HttpError(413, "too_many_rows");
   const items: T[] = [];
   const rejected: string[] = [];
   for (const row of value) {
-    let id = "invalid";
-    if (isObject(row) && typeof row.id === "string" && row.id.length > 0 && row.id.length <= MAX_ID_LENGTH) {
-      id = row.id;
-    }
+    const id = identify(row);
     try {
       items.push(parse(row));
     } catch {
@@ -85,6 +93,21 @@ function parseRows<T>(value: unknown, field: string, parse: (row: unknown) => T)
     }
   }
   return { items, rejected };
+}
+
+function rowId(row: unknown): string {
+  if (isObject(row) && typeof row.id === "string" && row.id.length > 0 && row.id.length <= MAX_ID_LENGTH) {
+    return row.id;
+  }
+  return "invalid";
+}
+
+/** Notes have no id, so report their day with the same key prefix the client uses. */
+function noteId(row: unknown): string {
+  if (isObject(row) && typeof row.epochDay === "number" && Number.isSafeInteger(row.epochDay)) {
+    return `n:${row.epochDay}`;
+  }
+  return "invalid";
 }
 
 function parseWeight(value: unknown): SyncWeight {
@@ -135,8 +158,25 @@ function parseMeal(value: unknown): SyncMeal {
   };
 }
 
+function parseNote(value: unknown): SyncNote {
+  if (!isObject(value)) throw new Error("invalid row");
+  const epochDay = integer(value.epochDay, "invalid_note", MIN_EPOCH_DAY, MAX_EPOCH_DAY);
+  const memo = textValue(value.memo, "invalid_note", MAX_MEMO_LENGTH);
+  const note = textValue(value.note, "invalid_note", MAX_NOTE_LENGTH);
+  const updatedAt = integer(value.updatedAt, "invalid_note", 0, MAX_TIME);
+  const deleted = booleanValue(value.deleted, "invalid_note");
+  return { epochDay, memo, note, updatedAt, deleted };
+}
+
 function stringValue(value: unknown, code: string, maxLength: number): string {
   if (typeof value !== "string" || value.length === 0 || value.length > maxLength) {
+    throw new HttpError(400, code);
+  }
+  return value;
+}
+
+function textValue(value: unknown, code: string, maxLength: number): string {
+  if (typeof value !== "string" || [...value].length > maxLength) {
     throw new HttpError(400, code);
   }
   return value;

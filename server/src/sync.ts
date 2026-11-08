@@ -1,8 +1,11 @@
 import { resultRows } from "./d1";
-import { orderedWeights, planWeights, preferProfile, type WeightPlanItem, type WeightRow } from "./merge";
+import {
+  orderedWeights, planNotes, planWeights, preferProfile,
+  type NoteRow, type WeightPlanItem, type WeightRow,
+} from "./merge";
 import { HttpError } from "./http";
 import type { ParsedSync } from "./validate";
-import type { SyncMeal, SyncProfile, SyncWeight } from "./types";
+import type { SyncMeal, SyncNote, SyncProfile, SyncWeight } from "./types";
 
 export const RESPONSE_LIMIT = 2_000;
 const SEQ_BLOCK = 1_000_000;
@@ -43,6 +46,15 @@ interface MealDatabaseRow {
   seq: number;
 }
 
+interface NoteDatabaseRow {
+  epoch_day: number;
+  memo: string;
+  note: string;
+  updated_at: number;
+  deleted: number;
+  seq: number;
+}
+
 interface StoredMeal extends SyncMeal {
   seq: number;
 }
@@ -54,7 +66,8 @@ interface ProfileRow extends SyncProfile {
 interface Statement {
   sql: string;
   params: (string | number | null)[];
-  tag: "counter" | "profileWrite" | "weightWrite" | "mealWrite" | "pageProfile" | "pageWeights" | "pageMeals";
+  tag: "counter" | "profileWrite" | "weightWrite" | "mealWrite" | "noteWrite" |
+    "pageProfile" | "pageWeights" | "pageMeals" | "pageNotes";
 }
 
 export interface SyncResult {
@@ -62,6 +75,7 @@ export interface SyncResult {
   profile: SyncProfile | null;
   weights: SyncWeight[];
   meals: SyncMeal[];
+  notes: SyncNote[];
   more: boolean;
   rejected: string[];
 }
@@ -72,6 +86,7 @@ export async function syncUser(db: D1Database, userId: string, request: ParsedSy
     db.prepare("SELECT data, updated_at, seq FROM profiles WHERE user_id = ?").bind(userId),
     relevantWeightsStatement(db, userId, request),
     relevantMealsStatement(db, userId, request),
+    relevantNotesStatement(db, userId, request),
   ]);
   if (resultRows<{ id: string }>(records[0])[0] === undefined) {
     throw new HttpError(401, "invalid_access_token");
@@ -79,16 +94,18 @@ export async function syncUser(db: D1Database, userId: string, request: ParsedSy
   const profileResult = resultRows<ProfileDatabaseRow>(records[1])[0] ?? null;
   const weightResult = resultRows<WeightDatabaseRow>(records[2]);
   const mealResult = resultRows<MealDatabaseRow>(records[3]);
+  const noteResult = resultRows<NoteDatabaseRow>(records[4]);
 
   const storedProfile = profileResult === null ? null : parseStoredProfile(profileResult);
   const profileWrite = planProfile(storedProfile, request.profile);
   const weightPlan = orderedWeights(planWeights(request.weights, weightResult.map(toWeight)));
   const mealWrites = planMeals(mealResult.map(toMeal), request.meals);
-  const hasWrites = profileWrite !== null || weightPlan.length > 0 || mealWrites.length > 0;
+  const noteWrites = planNotes(request.notes, noteResult.map(toNote));
+  const hasWrites = profileWrite !== null || weightPlan.length > 0 || mealWrites.length > 0 || noteWrites.length > 0;
 
   if (!hasWrites) return readPage(db, userId, request.since, request.rejected);
 
-  const statements = buildBatch(userId, request.since, profileWrite, weightPlan, mealWrites);
+  const statements = buildBatch(userId, request.since, profileWrite, weightPlan, mealWrites, noteWrites);
   const results = await db.batch(statements.map((item) => db.prepare(item.sql).bind(...item.params)));
   const page = new Map<string, unknown>();
   statements.forEach((item, index) => {
@@ -98,6 +115,7 @@ export async function syncUser(db: D1Database, userId: string, request: ParsedSy
     resultRows<ProfileDatabaseRow>(page.get("pageProfile")).at(0) ?? null,
     resultRows<WeightDatabaseRow>(page.get("pageWeights")),
     resultRows<MealDatabaseRow>(page.get("pageMeals")),
+    resultRows<NoteDatabaseRow>(page.get("pageNotes")),
     request.since,
     request.rejected,
   );
@@ -109,6 +127,7 @@ function buildBatch(
   profile: ProfileRow | null,
   weights: readonly WeightPlanItem[],
   meals: readonly (StoredMeal & { seq: number })[],
+  notes: readonly NoteRow[],
 ): Statement[] {
   const statements: Statement[] = [
     { sql: "UPDATE counters SET value = value + ? WHERE name = 'seq'", params: [SEQ_BLOCK], tag: "counter" },
@@ -132,6 +151,10 @@ function buildBatch(
   }
   if (meals.length > 0) {
     statements.push(mealUpsert(userId, meals, rank));
+    rank += meals.length;
+  }
+  if (notes.length > 0) {
+    statements.push(noteUpsert(userId, notes, rank));
   }
   statements.push({
     sql: "SELECT data, updated_at, seq FROM profiles WHERE user_id = ? AND seq > ? LIMIT 1",
@@ -150,6 +173,12 @@ function buildBatch(
           FROM meals WHERE user_id = ? AND seq > ? ORDER BY seq LIMIT ?`,
     params: [userId, since, RESPONSE_LIMIT + 1],
     tag: "pageMeals",
+  });
+  statements.push({
+    sql: `SELECT epoch_day, memo, note, updated_at, deleted, seq
+          FROM notes WHERE user_id = ? AND seq > ? ORDER BY seq LIMIT ?`,
+    params: [userId, since, RESPONSE_LIMIT + 1],
+    tag: "pageNotes",
   });
   return statements;
 }
@@ -237,6 +266,36 @@ function mealUpsert(userId: string, meals: readonly StoredMeal[], firstRank: num
   };
 }
 
+function noteUpsert(userId: string, notes: readonly NoteRow[], firstRank: number): Statement {
+  const rows = notes.map((note, index) => ({
+    userId,
+    epochDay: note.epochDay,
+    memo: note.memo,
+    note: note.note,
+    updatedAt: note.updatedAt,
+    deleted: note.deleted ? 1 : 0,
+    rank: firstRank + index,
+  }));
+  return {
+    sql: `INSERT INTO notes (user_id, epoch_day, memo, note, updated_at, deleted, seq)
+          SELECT s.userId, s.epochDay, s.memo, s.note, s.updatedAt, s.deleted,
+                 (SELECT value FROM counters WHERE name = 'seq') - ${SEQ_BLOCK} + s.rank
+          FROM (
+            SELECT json_extract(value, '$.userId') AS userId,
+                   json_extract(value, '$.epochDay') AS epochDay,
+                   json_extract(value, '$.memo') AS memo, json_extract(value, '$.note') AS note,
+                   json_extract(value, '$.updatedAt') AS updatedAt,
+                   json_extract(value, '$.deleted') AS deleted, json_extract(value, '$.rank') AS rank
+            FROM json_each(?)
+          ) AS s WHERE true
+          ON CONFLICT(user_id, epoch_day) DO UPDATE SET memo = excluded.memo, note = excluded.note,
+            updated_at = excluded.updated_at, deleted = excluded.deleted, seq = excluded.seq
+          WHERE excluded.updated_at > notes.updated_at`,
+    params: [JSON.stringify(rows)],
+    tag: "noteWrite",
+  };
+}
+
 function relevantWeightsStatement(db: D1Database, userId: string, request: ParsedSync): D1PreparedStatement {
   return db
     .prepare(
@@ -261,16 +320,27 @@ function relevantMealsStatement(db: D1Database, userId: string, request: ParsedS
     .bind(userId, JSON.stringify(request.meals.map((row) => row.id)));
 }
 
+function relevantNotesStatement(db: D1Database, userId: string, request: ParsedSync): D1PreparedStatement {
+  return db
+    .prepare(
+      `SELECT epoch_day, memo, note, updated_at, deleted, seq
+       FROM notes WHERE user_id = ? AND epoch_day IN (SELECT value FROM json_each(?))`,
+    )
+    .bind(userId, JSON.stringify([...new Set(request.notes.map((row) => row.epochDay))]));
+}
+
 async function readPage(db: D1Database, userId: string, since: number, rejected: string[]): Promise<SyncResult> {
   const results = await db.batch([
     db.prepare("SELECT data, updated_at, seq FROM profiles WHERE user_id = ? AND seq > ? LIMIT 1").bind(userId, since),
     pageWeightsStatement(db, userId, since),
     pageMealsStatement(db, userId, since),
+    pageNotesStatement(db, userId, since),
   ]);
   return selectPage(
     resultRows<ProfileDatabaseRow>(results[0])[0] ?? null,
     resultRows<WeightDatabaseRow>(results[1]),
     resultRows<MealDatabaseRow>(results[2]),
+    resultRows<NoteDatabaseRow>(results[3]),
     since,
     rejected,
   );
@@ -295,16 +365,25 @@ function pageMealsStatement(db: D1Database, userId: string, since: number): D1Pr
     .bind(userId, since, RESPONSE_LIMIT + 1);
 }
 
+function pageNotesStatement(db: D1Database, userId: string, since: number): D1PreparedStatement {
+  return db
+    .prepare(
+      `SELECT epoch_day, memo, note, updated_at, deleted, seq
+       FROM notes WHERE user_id = ? AND seq > ? ORDER BY seq LIMIT ?`,
+    )
+    .bind(userId, since, RESPONSE_LIMIT + 1);
+}
+
 interface PageChange {
   seq: number;
-  kind: "profile" | "weight" | "meal";
-  row: ProfileDatabaseRow | WeightDatabaseRow | MealDatabaseRow;
+  kind: "profile" | "weight" | "meal" | "note";
+  row: ProfileDatabaseRow | WeightDatabaseRow | MealDatabaseRow | NoteDatabaseRow;
 }
 
 /**
- * Merge the three per-table windows into one global sequence-ordered page.
+ * Merge the four per-table windows into one global sequence-ordered page.
  *
- * Each table reads one extra row. Taking the lowest 2,000 across all three
+ * Each table reads one extra row. Taking the lowest 2,000 across all four
  * guarantees that no unreturned row has a seq below the returned cursor, even
  * when a profile revision has a much higher seq than food or weight rows.
  */
@@ -312,6 +391,7 @@ export function selectPage(
   profileRow: ProfileDatabaseRow | null,
   weightRows: readonly WeightDatabaseRow[],
   mealRows: readonly MealDatabaseRow[],
+  noteRows: readonly NoteDatabaseRow[],
   since: number,
   rejected: string[],
 ): SyncResult {
@@ -325,15 +405,20 @@ export function selectPage(
   for (const row of mealRows) {
     if (row.seq > since) changes.push({ seq: row.seq, kind: "meal", row });
   }
+  for (const row of noteRows) {
+    if (row.seq > since) changes.push({ seq: row.seq, kind: "note", row });
+  }
   changes.sort((left, right) => left.seq - right.seq);
 
   const page = changes.slice(0, RESPONSE_LIMIT);
   const profileChange = page.find((change) => change.kind === "profile");
   const weightChanges = page.filter((change) => change.kind === "weight");
   const mealChanges = page.filter((change) => change.kind === "meal");
+  const noteChanges = page.filter((change) => change.kind === "note");
   const profile = profileChange === undefined ? null : parseStoredProfile(profileChange.row as ProfileDatabaseRow);
   const weights = weightChanges.map((change) => toWeight(change.row as WeightDatabaseRow));
   const meals = mealChanges.map((change) => toMeal(change.row as MealDatabaseRow));
+  const notes = noteChanges.map((change) => toNote(change.row as NoteDatabaseRow));
   const last = page.at(-1);
   const cursor = last === undefined ? since : Math.max(since, last.seq);
 
@@ -342,6 +427,7 @@ export function selectPage(
     profile: profile === null ? null : stripSeq(profile),
     weights: weights.map(wireWeight),
     meals: meals.map(stripSeq),
+    notes: notes.map(stripSeq),
     more: changes.some((change) => change.seq > cursor),
     rejected,
   };
@@ -405,6 +491,17 @@ function toMeal(row: MealDatabaseRow): StoredMeal {
     prot: row.prot,
     fat: row.fat,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deleted: row.deleted === 1,
+    seq: row.seq,
+  };
+}
+
+function toNote(row: NoteDatabaseRow): NoteRow {
+  return {
+    epochDay: row.epoch_day,
+    memo: row.memo,
+    note: row.note,
     updatedAt: row.updated_at,
     deleted: row.deleted === 1,
     seq: row.seq,

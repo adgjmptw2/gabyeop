@@ -43,11 +43,20 @@ export interface SyncMeal {
   deleted: boolean;
 }
 
+export interface SyncNote {
+  epochDay: number;
+  memo: string;
+  note: string;
+  updatedAt: number;
+  deleted: boolean;
+}
+
 export interface SyncRequest {
   since: number;
   profile: SyncProfile | null;
   weights: SyncWeight[];
   meals: SyncMeal[];
+  notes: SyncNote[];
 }
 
 export interface SyncResponse {
@@ -55,6 +64,7 @@ export interface SyncResponse {
   profile: SyncProfile | null;
   weights: SyncWeight[];
   meals: SyncMeal[];
+  notes: SyncNote[];
   more: boolean;
   rejected: string[];
 }
