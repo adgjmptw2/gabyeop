@@ -30,21 +30,15 @@ fun DayDetailScreen(state: DayDetailState, vm: RecordsViewModel,
 
 @Composable
 private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusWeight: Boolean, onFocused: () -> Unit) {
-    var weight by rememberSaveable(state.date) { mutableStateOf(state.weightKg?.kg().orEmpty()) }
-    var bodyFat by rememberSaveable(state.date) { mutableStateOf(state.bodyFatPct?.kg().orEmpty()) }
-    var memo by rememberSaveable(state.date) { mutableStateOf(state.memo) }
-    var note by rememberSaveable(state.date) { mutableStateOf(state.note) }
+    val drafts by vm.drafts.collectAsStateWithLifecycle()
+    val draft = drafts[state.date] ?: DayDraft()
+    val weight = draft.weight ?: state.weightKg?.kg().orEmpty()
+    val bodyFat = draft.bodyFat ?: state.bodyFatPct?.kg().orEmpty()
+    val memo = draft.memo ?: state.memo
+    val note = draft.note ?: state.note
     var tried by rememberSaveable(state.date) { mutableStateOf(false) }
     val save by vm.saveState.collectAsStateWithLifecycle()
     val status = save.takeIf { it.date == state.date }
-    var loaded by remember { mutableStateOf(LoadedFields(state.weightKg, state.bodyFatPct, state.memo, state.note)) }
-    LaunchedEffect(state.weightKg, state.bodyFatPct, state.memo, state.note) {
-        if (state.weightKg != loaded.weightKg) weight = state.weightKg?.kg().orEmpty()
-        if (state.bodyFatPct != loaded.bodyFatPct) bodyFat = state.bodyFatPct?.kg().orEmpty()
-        if (state.memo != loaded.memo) memo = state.memo
-        if (state.note != loaded.note) note = state.note
-        loaded = LoadedFields(state.weightKg, state.bodyFatPct, state.memo, state.note)
-    }
     val requester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(focusWeight) {
@@ -65,16 +59,17 @@ private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusW
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(weight, onValueChange = {
-                    weight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(6)
-                    if (weight.isBlank()) bodyFat = ""
+                    val value = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(6)
+                    vm.updateDraft(state.date) { edited ->
+                        edited.copy(weight = value, bodyFat = if (value.isBlank()) "" else edited.bodyFat)
+                    }
                 }, label = { Text("체중") }, suffix = { Text("kg") }, singleLine = true, enabled = !saving,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = tried && !validWeight,
                     supportingText = { if (tried && !validWeight) Text("30~300 kg 사이로 입력해 주세요") },
                     modifier = Modifier.fillMaxWidth().focusRequester(requester))
                 if (state.weightId != null) TextButton(onClick = {
-                    weight = ""; bodyFat = ""
-                    vm.saveDay(state.date, null, state.weightId, memo, note)
+                    vm.deleteWeight(state.date, state.weightId)
                 }, enabled = !saving) { Text("체중 삭제") }
                 val profile = state.profile
                 if (parsed != null && profile != null) {
@@ -83,38 +78,45 @@ private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusW
                         color = MaterialTheme.colorScheme.onSurface)
                 }
                 OutlinedTextField(bodyFat, onValueChange = {
-                    bodyFat = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(5)
-                }, label = { Text("체지방률 · 선택") }, suffix = { Text("%") }, singleLine = true,
+                    val value = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(5)
+                    vm.updateDraft(state.date) { edited -> edited.copy(bodyFat = value) }
+                }, label = { Text("체지방률(선택)") }, suffix = { Text("%") }, singleLine = true,
                     enabled = !saving && parsed != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = tried && !validFat,
                     supportingText = {
-                        Text(if (tried && !validFat) "체중과 함께 3~70%로 입력해 주세요" else "체중계·인바디 값")
+                        Text(if (tried && !validFat) "체중과 함께 3~70%로 입력해 주세요" else "체지방계로 잰 값")
                     }, modifier = Modifier.fillMaxWidth())
                 if (bodyFat.isBlank() && parsed != null && profile != null) {
                     val estimate = BodyMetrics.estimateBodyFat(BodyMetrics.bmi(parsed, profile.heightCm),
                         state.date.year - profile.birthYear, profile.sex)
-                    Text("추정 약 ${estimate.roundToInt()}% (BMI·나이·성별로 계산, 실제와 차이가 커요)",
+                    Text("추정 약 ${estimate.roundToInt()}% (BMI·나이·성별로 계산, 실제와 다를 수 있어요)",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(memo, { memo = truncateToCodePoints(it.replace('\n', ' '), MEMO_MAX_LENGTH) },
+                OutlinedTextField(memo, {
+                    val value = truncateToCodePoints(it.replace('\n', ' '), MEMO_MAX_LENGTH)
+                    vm.updateDraft(state.date) { edited -> edited.copy(memo = value) }
+                },
                     label = { Text("한 줄 메모") }, singleLine = true, enabled = !saving,
                     supportingText = { Text("${codePointLength(memo)}/$MEMO_MAX_LENGTH") },
                     modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(note, { note = truncateToCodePoints(it, NOTE_MAX_LENGTH) },
+                OutlinedTextField(note, {
+                    val value = truncateToCodePoints(it, NOTE_MAX_LENGTH)
+                    vm.updateDraft(state.date) { edited -> edited.copy(note = value) }
+                },
                     label = { Text("자세한 메모") }, minLines = 3, maxLines = 8, enabled = !saving,
                     supportingText = { Text("${codePointLength(note)}/$NOTE_MAX_LENGTH") },
                     modifier = Modifier.fillMaxWidth())
-                TextButton(onClick = { memo = ""; note = ""; vm.clearNote(state.date) },
-                    enabled = !saving && (memo.isNotBlank() || note.isNotBlank())) { Text("메모 지우기") }
+                TextButton(onClick = { vm.clearNote(state.date) },
+                    enabled = !saving && (memo.isNotBlank() || note.isNotBlank())) { Text("메모 삭제") }
                 Button(onClick = {
                     tried = true
-                    if (validWeight && validFat) vm.saveDay(state.date, parsed, state.weightId, memo, note, fat)
-                }, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(if (saving) "저장 중" else "저장") }
+                    if (validWeight && validFat) vm.saveDay(state.date, parsed, memo, note, fat)
+                }, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(if (saving) "저장 중" else "체중·메모 저장") }
                 val message = status?.error ?: if (status?.success == true) "저장했어요" else null
                 message?.let { Text(it, style = MaterialTheme.typography.bodySmall,
                     color = if (status?.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -149,5 +151,3 @@ private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusW
         }
     }
 }
-
-private data class LoadedFields(val weightKg: Double?, val bodyFatPct: Double?, val memo: String, val note: String)

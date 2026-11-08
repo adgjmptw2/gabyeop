@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { selectPage, planFasts, RESPONSE_LIMIT } from "../src/sync";
+import { selectPage, planFasts, planProfile, RESPONSE_LIMIT } from "../src/sync";
+import { planNotes, planWeights } from "../src/merge";
+import { parseSyncRequest } from "../src/validate";
 
 type Weight = { id: string; seq: number };
 type Meal = { id: string; seq: number };
@@ -45,6 +47,7 @@ describe("sync page assembly", () => {
     expect(page.notes[0]?.waterMl).toBe(1250);
     expect(page.fasts).toEqual([{ id: "f", startAt: 1000, endAt: 16000, targetHours: 16, updatedAt: 3, deleted: false }]);
     expect(page.cursor).toBe(3);
+    expect(page.protocol).toBe(2);
   });
 
   it("includes fasts in the global page boundary without skipping notes", () => {
@@ -119,11 +122,54 @@ describe("sync page assembly", () => {
     expect(page.more).toBe(false);
     expect(page.profile).toBeNull();
     expect(page.notes).toEqual([]);
+    expect(page.protocol).toBe(2);
   });
 
   it("keeps rejected ids in the response", () => {
     const page = selectPage(null, [], [], [], 0, ["bad-1", "bad-2"]);
     expect(page.rejected).toEqual(["bad-1", "bad-2"]);
+  });
+});
+
+describe("legacy payload field preservation", () => {
+  const baseProfile = { sex: "FEMALE", birthYear: 1990, heightCm: 165, startWeightKg: 70,
+    targetWeightKg: 60, activity: "LIGHT", startEpochDay: 20000, updatedAt: 10 };
+  const baseWeight = { id: "w", epochDay: 20000, weightKg: 70, createdAt: 1, updatedAt: 10, deleted: false };
+  const baseNote = { epochDay: 20000, memo: "", note: "", updatedAt: 10, deleted: false };
+
+  it("retains an existing calorie target when an old profile omits the field", () => {
+    const stored = { ...baseProfile, calorieTarget: 1500, seq: 1 };
+    const legacy = parseSyncRequest({ since: 0, profile: { ...baseProfile, updatedAt: 11 } });
+    expect(planProfile(stored, legacy.profile)?.calorieTarget).toBe(1500);
+    const clear = parseSyncRequest({ since: 0, profile: { ...baseProfile, updatedAt: 11, calorieTarget: null } });
+    expect(planProfile(stored, clear.profile)?.calorieTarget).toBeNull();
+  });
+
+  it("retains body fat for legacy updates, including a new id on the same day", () => {
+    const stored = { ...baseWeight, bodyFatPct: 28.5, modifiedAt: 10, seq: 1 };
+    for (const id of ["w", "other-device"]) {
+      const legacy = parseSyncRequest({ since: 0, weights: [{ ...baseWeight, id, updatedAt: 11 }] });
+      expect(planWeights(legacy.weights, [stored]).find((item) => item.row.id === id)?.row.bodyFatPct).toBe(28.5);
+    }
+    const clear = parseSyncRequest({ since: 0, weights: [{ ...baseWeight, updatedAt: 11, bodyFatPct: null }] });
+    expect(planWeights(clear.weights, [stored])[0]?.row.bodyFatPct).toBeNull();
+  });
+
+  it("keeps water-only days live when legacy notes omit water, and accepts explicit clearing", () => {
+    const stored = { ...baseNote, waterMl: 1250, seq: 1 };
+    const legacy = parseSyncRequest({ since: 0, notes: [{ ...baseNote, updatedAt: 11 }] });
+    expect(planNotes(legacy.notes, [stored])[0]).toMatchObject({ waterMl: 1250, deleted: false });
+    for (const waterMl of [0, null]) {
+      const clear = parseSyncRequest({ since: 0, notes: [{ ...baseNote, updatedAt: 11, waterMl }] });
+      expect(planNotes(clear.notes, [stored])[0]).toMatchObject({ waterMl: 0, deleted: true });
+    }
+  });
+
+  it("uses empty defaults only when no stored record exists", () => {
+    const legacy = parseSyncRequest({ since: 0, profile: baseProfile, weights: [baseWeight], notes: [baseNote] });
+    expect(planProfile(null, legacy.profile)?.calorieTarget).toBeNull();
+    expect(planWeights(legacy.weights, [])[0]?.row.bodyFatPct).toBeNull();
+    expect(planNotes(legacy.notes, [])[0]).toMatchObject({ waterMl: 0, deleted: true });
   });
 });
 

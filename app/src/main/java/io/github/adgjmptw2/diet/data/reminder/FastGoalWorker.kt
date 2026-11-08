@@ -84,9 +84,10 @@ class FastGoalScheduler @Inject constructor(
                     ?.let { Triple(it.id, it.startAt, it.targetHours) }
             }.distinctUntilChanged().collect { active ->
                 val work = WorkManager.getInstance(context)
-                NotificationManagerCompat.from(context).cancel(FastGoalWorker.ID)
-                if (active == null) work.cancelUniqueWork(NAME)
-                else {
+                if (active == null) {
+                    work.cancelUniqueWork(NAME)
+                    NotificationManagerCompat.from(context).cancel(FastGoalWorker.ID)
+                } else {
                     val (id, startAt, hours) = active
                     work.enqueueUniqueWork(NAME, ExistingWorkPolicy.REPLACE,
                         OneTimeWorkRequestBuilder<FastGoalWorker>()

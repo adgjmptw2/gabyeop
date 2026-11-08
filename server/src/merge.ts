@@ -40,7 +40,10 @@ export function planNotes(incoming: readonly SyncNote[], stored: readonly NoteRo
   for (const source of incoming) {
     const previous = byDay.get(source.epochDay);
     if (previous !== undefined && !preferNote(source, previous)) continue;
-    const row = { ...source, seq: 0 };
+    const waterMl = source.waterMl === undefined ? previous?.waterMl ?? 0 : source.waterMl;
+    const row = { ...source, waterMl,
+      deleted: source.deleted || (source.memo.trim().length === 0 && source.note.trim().length === 0 && waterMl === 0),
+      seq: 0 };
     byDay.set(row.epochDay, row);
     changed.set(row.epochDay, row);
   }
@@ -113,7 +116,9 @@ export function planWeights(incoming: readonly SyncWeight[], stored: readonly We
       byId.set(current.id, tombstone);
     }
 
-    const row: WeightRow = { ...source, modifiedAt: source.updatedAt, seq: 0 };
+    const row: WeightRow = { ...source,
+      bodyFatPct: source.bodyFatPct === undefined ? (existing ?? current)?.bodyFatPct ?? null : source.bodyFatPct,
+      modifiedAt: source.updatedAt, seq: 0 };
     planned.set(row.id, { row, tombstone: false, userDeletion: row.deleted });
     byId.set(row.id, row);
     if (row.deleted) live.delete(row.epochDay);

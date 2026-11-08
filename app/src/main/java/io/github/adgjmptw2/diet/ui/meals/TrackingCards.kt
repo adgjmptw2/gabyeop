@@ -92,7 +92,7 @@ private fun WaterCard(ml: Int, target: Int, glassMl: Int, adjust: (Int) -> Unit,
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { adjust(-glassMl) }, enabled = ml > 0,
-                    modifier = Modifier.semantics { contentDescription = "물 한 잔 빼기" }) { Text("−") }
+                    modifier = Modifier.semantics { contentDescription = "물 한 잔 빼기" }) { Text("− 한 잔") }
                 TextButton(onClick = { adjust(glassMl) }, enabled = ml < 10_000) { Text("+ 한 잔") }
                 Text("${glassMl} ml", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -157,7 +157,7 @@ private fun FastingCard(state: FastingUiState, vm: TrackingViewModel, modifier: 
                 Text("${Fasting.stages[index].name} · 목표 ${active.targetHours}시간", style = MaterialTheme.typography.bodySmall)
                 if (elapsed > Fasting.MAX_DURATION_MS) Text("기록은 최대 7일로 남아요",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { vm.finish() }) { Text("끝내기") }
+                    TextButton(onClick = { vm.finish() }) { Text("단식 끝내기") }
             }
             AnimatedVisibility(expanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

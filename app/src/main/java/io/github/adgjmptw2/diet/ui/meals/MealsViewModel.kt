@@ -3,8 +3,10 @@ package io.github.adgjmptw2.diet.ui.meals
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.adgjmptw2.diet.data.FoodRepository
+import io.github.adgjmptw2.diet.data.DietDatabase
 import io.github.adgjmptw2.diet.data.MealRepository
 import io.github.adgjmptw2.diet.data.ProfileRepository
 import io.github.adgjmptw2.diet.data.WeightRepository
@@ -74,13 +76,17 @@ data class MealEditorState(
     val type: MealType,
     val session: String = UUID.randomUUID().toString(),
     val food: Food? = null,
+    val currentFood: Food? = null,
     val original: MealEntry? = null,
     val custom: Boolean = false,
+    val saveToCustomFoods: Boolean = false,
+    val customLibraryOnly: Boolean = false,
     val name: String = "",
     val servingText: String = "1",
     val kcalText: String = "",
     val unit: String = "팩",
     val amountText: String = "1",
+    val amountEdited: Boolean = false,
     val favoriteIds: Set<String> = emptySet(),
     val customBrand: String = "",
     val customCarbText: String = "",
@@ -101,10 +107,10 @@ data class MealEditorState(
     val unitKind: FoodUnit get() = FoodUnit.from(unit)
     val serving: Double? get() = if (custom) parseMealAmount(servingText) else food?.serving
     /** 기록 양. 팩/개는 개수, g/ml는 그램·밀리리터다. */
-    val amount: Double? get() = parseMealAmount(amountText)
+    val amount: Double? get() = if (original != null && !amountEdited) original.amount else parseMealAmount(amountText)
     val servingWeight: Double? get() = parseOptionalMealAmount(servingWeightText)
     val previewFood: Food? get() {
-        if (!custom) return food
+        if (!custom) return if (original != null && amount != original.amount) currentFood ?: food else food
         if (name.isBlank()) return null
         val kcal = parseMealKcal(kcalText) ?: return null
         val kind = unitKind
@@ -135,6 +141,9 @@ data class MealEditorState(
     val nutrition: Macro? get() {
         val food = previewFood ?: return null
         val amount = amount ?: return null
+        if (!custom && original != null && amount == original.amount) {
+            return Macro(original.kcal, original.carb, original.prot, original.fat)
+        }
         return Nutrition.forAmount(food, amount).takeIf { macro ->
             macro.kcal.isFinite() && macro.kcal <= MAX_ENTRY_KCAL &&
                 listOfNotNull(macro.carb, macro.prot, macro.fat).all { it.isFinite() && it <= MAX_ENTRY_KCAL }
@@ -165,6 +174,7 @@ class MealsViewModel @Inject constructor(
     weights: WeightRepository,
     private val photos: MealPhotoStore,
     private val clock: Clock,
+    private val db: DietDatabase,
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow(LocalDate.now(clock))
     private val importing = MutableStateFlow(ImportState())
@@ -307,8 +317,7 @@ class MealsViewModel @Inject constructor(
                 val stored = foods.byId(id)?.takeIf { it.unit == entry.unit } ?: return@launch
                 updateSession(draft.session) {
                     it.copy(
-                        food = stored,
-                        servingText = stored.servingAmount.amountText(),
+                        currentFood = stored,
                         favorite = stored.favorite,
                         favoriteIds = if (stored.favorite) it.favoriteIds + id else it.favoriteIds - id,
                     )
@@ -335,7 +344,8 @@ class MealsViewModel @Inject constructor(
     }
 
     fun custom() = updateEditor {
-        it.copy(custom = true, name = _query.value.trim(), amountText = "1", servingText = "1",
+        it.copy(custom = true, customLibraryOnly = false, saveToCustomFoods = false,
+            currentFood = null, name = _query.value.trim(), amountText = "1", servingText = "1",
             unit = FoodUnit.PACK.label, kcalText = "", customBrand = "",
             customCarbText = "", customProtText = "", customFatText = "", servingWeightText = "",
             macrosExpanded = false, editingCustomId = null, editingCustomFood = null,
@@ -343,18 +353,19 @@ class MealsViewModel @Inject constructor(
     }
 
     fun backToSearch() = updateEditor {
-        it.copy(food = null, custom = false, name = "", kcalText = "", amountText = "",
+        it.copy(food = null, currentFood = null, custom = false, customLibraryOnly = false,
+            saveToCustomFoods = false, name = "", kcalText = "", amountText = "",
             unit = FoodUnit.GRAM.label, servingText = "100", servingWeightText = "", macrosExpanded = false,
             customBrand = "", customCarbText = "", customProtText = "", customFatText = "",
             editingCustomId = null, editingCustomFood = null, favorite = false, error = null)
     }
 
-    fun amount(text: String) = updateEditor { it.copy(amountText = mealNumberInput(text), error = null) }
+    fun amount(text: String) = updateEditor { it.copy(amountText = mealNumberInput(text), amountEdited = true, error = null) }
 
     /** 칩은 1회분 배수를 고른다. 팩/개는 1개를 기준으로 ½·1·2개다. */
     fun portion(multiplier: Double) = updateEditor {
         val base = it.previewFood?.servingAmount ?: it.serving ?: return@updateEditor it
-        it.copy(amountText = (base * multiplier).amountText(), error = null)
+        it.copy(amountText = (base * multiplier).amountText(), amountEdited = true, error = null)
     }
 
     fun mealType(type: MealType) = updateEditor { it.copy(type = type, error = null) }
@@ -394,6 +405,7 @@ class MealsViewModel @Inject constructor(
     }
 
     fun customFavorite() = updateEditor { it.copy(favorite = !it.favorite, error = null) }
+    fun saveToCustomFoods(enabled: Boolean) = updateEditor { it.copy(saveToCustomFoods = enabled) }
 
     fun toggleFavorite(id: String, currentlyFavorite: Boolean? = null) {
         if (id.isBlank()) return
@@ -419,7 +431,8 @@ class MealsViewModel @Inject constructor(
     fun newCustom() {
         _query.value = ""
         updateEditor {
-            it.copy(custom = true, food = null, name = "", servingText = "1", kcalText = "",
+            it.copy(custom = true, customLibraryOnly = true, saveToCustomFoods = false,
+                food = null, currentFood = null, name = "", servingText = "1", kcalText = "",
                 unit = FoodUnit.PACK.label, amountText = "1", customBrand = "",
                 customCarbText = "", customProtText = "", customFatText = "", servingWeightText = "",
                 macrosExpanded = false, editingCustomId = null, editingCustomFood = null, favorite = false, error = null)
@@ -441,7 +454,8 @@ class MealsViewModel @Inject constructor(
     private fun applyCustomDraft(draft: CustomFoodDraft, editingId: String?, editingFood: Food?, favorite: Boolean) {
         updateEditor {
             it.copy(
-                custom = true, food = null, name = draft.name, customBrand = draft.brand.orEmpty(),
+                custom = true, customLibraryOnly = true, saveToCustomFoods = false,
+                food = null, currentFood = null, name = draft.name, customBrand = draft.brand.orEmpty(),
                 unit = draft.unit, servingText = draft.serving.amountText(), kcalText = draft.kcal.amountText(),
                 amountText = draft.serving.amountText(),
                 customCarbText = draft.carb?.amountText().orEmpty(),
@@ -591,21 +605,25 @@ class MealsViewModel @Inject constructor(
     }
 
     fun save() {
-        val draft = _editor.value?.takeIf { it.saveEnabled && !it.custom } ?: return
+        val draft = _editor.value?.takeIf { it.saveEnabled && !(it.custom && it.customLibraryOnly) } ?: return
         val preview = draft.previewFood ?: return
         val macro = draft.nutrition ?: return
         val amount = draft.amount ?: return
         updateSession(draft.session) { it.copy(saving = true, error = null) }
         viewModelScope.launch {
             try {
-                val food = preview
-                meals.save(MealEntry(
-                    id = draft.original?.id.orEmpty(), date = draft.date, type = draft.type,
-                    foodId = if (draft.original != null) draft.original.foodId else food.id.takeIf { it.isNotEmpty() },
-                    name = food.name, emoji = draft.original?.emoji ?: FoodEmoji.of(food.name, food.rep, food.category),
-                    amount = amount, unit = food.unit, kcal = macro.kcal,
-                    carb = macro.carb, prot = macro.prot, fat = macro.fat, photoPath = draft.photoPath,
-                ))
+                db.withTransaction {
+                    val food = if (draft.custom && draft.saveToCustomFoods) {
+                        foods.createCustom(preview.toCustomDraft(), preview.favorite)
+                    } else preview
+                    meals.save(MealEntry(
+                        id = draft.original?.id.orEmpty(), date = draft.date, type = draft.type,
+                        foodId = if (draft.original != null) draft.original.foodId else food.id.takeIf { it.isNotEmpty() },
+                        name = food.name, emoji = draft.original?.emoji ?: FoodEmoji.of(food.name, food.rep, food.category),
+                        amount = amount, unit = food.unit, kcal = macro.kcal,
+                        carb = macro.carb, prot = macro.prot, fat = macro.fat, photoPath = draft.photoPath,
+                    ))
+                }
                 _editor.value = null
                 _query.value = ""
                 // 저장 성공 전까지 원래 사진을 보존해 취소·실패 시 기록이 깨지지 않게 한다.

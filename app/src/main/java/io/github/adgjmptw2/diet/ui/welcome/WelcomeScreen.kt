@@ -45,6 +45,7 @@ class WelcomeViewModel @Inject constructor(
 ) : ViewModel() {
     val account = auth.state.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AuthState())
     val googleAvailable = auth.googleSignInAvailable
+    val syncMessage = sync.message
     var busy by mutableStateOf(false)
         private set
     var message by mutableStateOf<String?>(null)
@@ -84,6 +85,7 @@ class WelcomeViewModel @Inject constructor(
 fun WelcomeScreen(vm: WelcomeViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val account by vm.account.collectAsStateWithLifecycle()
+    val syncMessage by vm.syncMessage.collectAsStateWithLifecycle()
     Column(
         Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
@@ -105,6 +107,8 @@ fun WelcomeScreen(vm: WelcomeViewModel = hiltViewModel()) {
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("동기화 다시 시도") }
         }
         if (vm.busy || account.signingIn) CircularProgressIndicator()
-        vm.message?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+        (syncMessage.takeIf { account.canSync } ?: vm.message)?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }

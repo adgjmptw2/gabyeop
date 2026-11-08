@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -161,7 +162,7 @@ internal fun AddFoodSheet(draft: MealEditorState, query: String, search: FoodSea
                         item { CustomFields(draft, vm) }
                     } else {
                         item {
-                            val food = draft.food
+                            val food = draft.previewFood
                             if (food != null) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(draft.original?.emoji ?: FoodEmoji.of(food.name, food.rep, food.category), fontSize = 32.sp, fontFamily = FontFamily.Default)
@@ -218,6 +219,12 @@ internal fun AddFoodSheet(draft: MealEditorState, query: String, search: FoodSea
                     }
                 }
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                if (draft.custom && !draft.customLibraryOnly) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = draft.saveToCustomFoods, onCheckedChange = vm::saveToCustomFoods, enabled = !busy)
+                        Text("내 음식에도 저장", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -228,13 +235,14 @@ internal fun AddFoodSheet(draft: MealEditorState, query: String, search: FoodSea
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         ) { Text("삭제") }
                     }
-                    val onSave: () -> Unit = if (draft.custom) vm::saveCustomFoodOnly else vm::save
+                    val onSave: () -> Unit = if (draft.custom && draft.customLibraryOnly) vm::saveCustomFoodOnly else vm::save
                     Button(onClick = onSave, enabled = draft.saveEnabled, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) {
                         Text(
                             when {
                                 draft.saving -> "저장 중"
-                                draft.custom -> "내 음식 저장"
-                                else -> "저장"
+                                draft.custom && draft.customLibraryOnly -> "내 음식 저장"
+                                draft.original != null -> "저장"
+                                else -> "${draft.type.label}에 추가"
                             }
                         )
                     }
@@ -333,7 +341,7 @@ private fun FoodSearch(
             OutlinedButton(
                 onClick = vm::custom, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                 shape = MaterialTheme.shapes.small,
-            ) { Text("내 음식 만들기") }
+            ) { Text("직접 입력") }
         }
     }
 }
@@ -424,7 +432,8 @@ private fun CustomFields(draft: MealEditorState, vm: MealsViewModel) {
     val enabled = !draft.saving && !draft.photoBusy
     val countUnit = draft.unitKind.isCount
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (draft.editingCustomId == null) "내 음식 만들기" else "내 음식 수정", style = MaterialTheme.typography.titleMedium)
+        Text(if (!draft.customLibraryOnly) "직접 입력" else if (draft.editingCustomId == null) "내 음식 만들기" else "내 음식 수정",
+            style = MaterialTheme.typography.titleMedium)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = draft.name, onValueChange = vm::customName, label = { Text("이름") }, singleLine = true,

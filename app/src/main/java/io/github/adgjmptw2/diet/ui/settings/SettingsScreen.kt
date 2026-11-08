@@ -58,7 +58,7 @@ import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.meals.liters
 
 private enum class SettingsPage { MAIN, THEME, PRIVACY, LICENSES, FONT }
-private enum class AccountDialog { LINK, LOGOUT, DELETE, CALORIE, WATER }
+private enum class AccountDialog { LINK, LOGOUT, DELETE, CLEAR_DEVICE, CALORIE, WATER }
 
 @Composable
 fun SettingsScreen(
@@ -163,6 +163,9 @@ fun SettingsScreen(
                             state.reminder.hour, state.reminder.minute, DateFormat.is24HourFormat(context)).show()
                     }
                     SettingsRow("데이터 내보내기", "체중·식단·메모·단식 CSV", !state.busy, onClick = vm::export)
+                    SettingsRow("이 기기 기록 지우기", enabled = !state.busy, destructive = true) {
+                        dialog = AccountDialog.CLEAR_DEVICE
+                    }
                 }
                 SettingsGroup("화면") {
                     SettingsRow("테마", LocalAppTheme.current.label, enabled = !state.busy) { page = SettingsPage.THEME }
@@ -207,6 +210,12 @@ fun SettingsScreen(
     }
 
     when (dialog) {
+        AccountDialog.CLEAR_DEVICE -> AlertDialog(onDismissRequest = { dialog = null },
+            title = { Text("이 기기 기록 지우기") },
+            text = { Text("이 기기의 기록을 지우고 로그아웃해요. 서버 기록은 남아요") },
+            confirmButton = { TextButton(onClick = { dialog = null; vm.clearDeviceData() }) {
+                Text("지우기", color = MaterialTheme.colorScheme.error)
+            } }, dismissButton = { TextButton(onClick = { dialog = null }) { Text("취소") } })
         AccountDialog.CALORIE -> CalorieTargetDialog(state.records, onDismiss = { dialog = null },
             onSave = { vm.setCalorieTarget(it); dialog = null })
         AccountDialog.WATER -> WaterSettingsDialog(state.records, onDismiss = { dialog = null },

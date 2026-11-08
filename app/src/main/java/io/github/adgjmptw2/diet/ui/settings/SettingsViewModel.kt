@@ -23,6 +23,7 @@ import io.github.adgjmptw2.diet.ui.common.todayDates
 import java.time.Clock
 import io.github.adgjmptw2.diet.data.reminder.ReminderScheduler
 import io.github.adgjmptw2.diet.data.sync.LoginRequiredException
+import io.github.adgjmptw2.diet.data.sync.SyncRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,10 +62,14 @@ class SettingsViewModel @Inject constructor(
     private val profiles: ProfileRepository,
     weights: WeightRepository,
     private val tracking: TrackingStore,
+    sync: SyncRepository,
     clock: Clock,
 ) : ViewModel() {
     private val busy = MutableStateFlow(false)
     private val message = MutableStateFlow<String?>(null)
+    private val displayMessage = combine(message, sync.message, auth.state) { local, server, account ->
+        server.takeIf { account.canSync } ?: local
+    }
     private val eventChannel = Channel<SettingsEvent>(Channel.BUFFERED)
     val events = eventChannel.receiveAsFlow()
     val googleAvailable = auth.googleSignInAvailable
@@ -75,7 +80,7 @@ class SettingsViewModel @Inject constructor(
         RecordSettingsState(recommended, p?.calorieTarget, p?.let { Calories.minimum(it.sex) } ?: 1200,
             water, waterTargetMl(current))
     }
-    val state = combine(auth.state, tokens.reminder, busy, message, recordSettings) { account, reminder, working, error, records ->
+    val state = combine(auth.state, tokens.reminder, busy, displayMessage, recordSettings) { account, reminder, working, error, records ->
         SettingsState(account, reminder, working, error, records)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsState())
 
@@ -94,6 +99,11 @@ class SettingsViewModel @Inject constructor(
 
     fun deleteAccount() = action {
         auth.deleteAccount()
+        eventChannel.send(SettingsEvent.Close)
+    }
+
+    fun clearDeviceData() = action {
+        auth.clearDeviceData()
         eventChannel.send(SettingsEvent.Close)
     }
 

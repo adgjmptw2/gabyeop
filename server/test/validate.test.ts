@@ -20,11 +20,12 @@ const validNote = {
 };
 
 describe("sync request validation", () => {
-  it("defaults new fields for older clients", () => {
+  it("keeps new fields absent for older clients so merges can preserve stored values", () => {
     const parsed = parseSyncRequest({ since: 0, weights: [validWeight],
       notes: [{ epochDay: 20000, memo: "", note: "", updatedAt: 1, deleted: false }] });
-    expect(parsed.weights[0]?.bodyFatPct).toBeNull();
-    expect(parsed.notes[0]?.waterMl).toBe(0);
+    expect(parsed.weights[0]).not.toHaveProperty("bodyFatPct");
+    expect(parsed.notes[0]).not.toHaveProperty("waterMl");
+    expect(parsed.notes[0]?.deleted).toBe(false);
     expect(parsed.fasts).toEqual([]);
   });
 
@@ -41,7 +42,7 @@ describe("sync request validation", () => {
   it("validates calorie target without requiring it from older profiles", () => {
     const profile = { sex: "FEMALE", birthYear: 1990, heightCm: 165, startWeightKg: 70,
       targetWeightKg: 60, activity: "LIGHT", startEpochDay: 20000, updatedAt: 1 };
-    expect(parseProfile(profile).calorieTarget).toBeNull();
+    expect(parseProfile(profile)).not.toHaveProperty("calorieTarget");
     for (const calorieTarget of [null, 800, 5000]) expect(parseProfile({ ...profile, calorieTarget }).calorieTarget).toBe(calorieTarget);
     for (const calorieTarget of [799, 5001, 1200.5, "1500", Number.NaN])
       expect(() => parseProfile({ ...profile, calorieTarget })).toThrow(HttpError);
@@ -50,9 +51,9 @@ describe("sync request validation", () => {
   it("validates water as an integer and keeps water-only days", () => {
     const parsed = parseSyncRequest({ since: 0, notes: [0, 10000, -1, 10001, 250.5, null].map((waterMl, i) =>
       ({ ...validNote, epochDay: 20000 + i, memo: "", note: "", waterMl })) });
-    expect(parsed.notes.map((row) => row.waterMl)).toEqual([0, 10000]);
-    expect(parsed.notes.map((row) => row.deleted)).toEqual([true, false]);
-    expect(parsed.rejected).toEqual(["n:20002", "n:20003", "n:20004", "n:20005"]);
+    expect(parsed.notes.map((row) => row.waterMl)).toEqual([0, 10000, 0]);
+    expect(parsed.notes.map((row) => row.deleted)).toEqual([true, false, true]);
+    expect(parsed.rejected).toEqual(["n:20002", "n:20003", "n:20004"]);
   });
 
   it("validates fasting duration, target hours, and nullable end", () => {

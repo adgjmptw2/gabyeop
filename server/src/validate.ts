@@ -68,7 +68,7 @@ export function parseProfile(value: unknown): SyncProfile {
     targetWeightKg,
     activity,
     startEpochDay,
-    calorieTarget,
+    ...(Object.hasOwn(value, "calorieTarget") ? { calorieTarget } : {}),
     updatedAt,
   };
 }
@@ -141,7 +141,8 @@ function parseWeight(value: unknown): SyncWeight {
   const updatedAt = integer(value.updatedAt, "invalid_weight", 0, MAX_TIME);
   const deleted = booleanValue(value.deleted, "invalid_weight");
   const bodyFatPct = optionalNumber(value.bodyFatPct, "invalid_weight", 3, 70);
-  return { id, epochDay, weightKg, bodyFatPct, createdAt, updatedAt, deleted };
+  return { id, epochDay, weightKg, createdAt, updatedAt, deleted,
+    ...(Object.hasOwn(value, "bodyFatPct") ? { bodyFatPct } : {}) };
 }
 
 function parseMeal(value: unknown): SyncMeal {
@@ -188,8 +189,10 @@ function parseNote(value: unknown): SyncNote {
   const note = textValue(value.note, "invalid_note", MAX_NOTE_LENGTH);
   const updatedAt = integer(value.updatedAt, "invalid_note", 0, MAX_TIME);
   const deleted = booleanValue(value.deleted, "invalid_note");
-  const waterMl = value.waterMl === undefined ? 0 : integer(value.waterMl, "invalid_note", 0, 10_000);
-  return { epochDay, memo, note, waterMl, updatedAt,
+  const waterMl = Object.hasOwn(value, "waterMl")
+    ? value.waterMl === null ? 0 : integer(value.waterMl, "invalid_note", 0, 10_000)
+    : undefined;
+  return { epochDay, memo, note, ...(waterMl === undefined ? {} : { waterMl }), updatedAt,
     deleted: deleted || (memo.trim().length === 0 && note.trim().length === 0 && waterMl === 0) };
 }
 

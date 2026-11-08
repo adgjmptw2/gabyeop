@@ -124,16 +124,14 @@ private fun SummaryCard(state: ProgressUiState) {
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
-            SummaryRow(
+            if (monthChange != null) SummaryRow(
                 "이번 달 변화",
                 when {
-                    monthChange == null -> "기록 없음"
                     monthChange < -0.05 -> "▼${monthChange.absKg()} kg"
                     monthChange > 0.05 -> "▲${monthChange.absKg()} kg"
                     else -> "변화 없음"
                 },
                 when {
-                    monthChange == null -> MaterialTheme.colorScheme.onSurfaceVariant
                     monthChange < -0.05 -> MaterialTheme.colorScheme.primary
                     monthChange > 0.05 -> MaterialTheme.colorScheme.onSurface
                     else -> MaterialTheme.colorScheme.onSurface

@@ -56,7 +56,19 @@ data class AuthState(
 }
 
 data class Tokens(val accessToken: String, val refreshToken: String)
-data class AuthSnapshot(val state: AuthState, val tokens: Tokens?, val cursor: Long, val lastPushAt: Long)
+data class AuthSnapshot(
+    val state: AuthState, val tokens: Tokens?, val cursor: Long, val lastPushAt: Long,
+    val keptOwnerId: String? = null, val keptOwnerEmail: String? = null,
+    val syncProtocol: Int = 1,
+) {
+    internal fun ownerConflict(userId: String): String? = when {
+        keptOwnerId != null && keptOwnerId != userId ->
+            "이 기기 기록은 ${keptOwnerEmail.orEmpty()} 계정 것이에요. 그 계정으로 로그인하거나 설정에서 기록을 지운 뒤 연결하세요"
+        state.account == AccountType.GOOGLE && state.userId != null && state.userId != userId ->
+            "처음 쓰던 Google 계정(${state.email.orEmpty()})으로 로그인해 주세요"
+        else -> null
+    }
+}
 data class ReminderSettings(val enabled: Boolean = false, val hour: Int = 20, val minute: Int = 0)
 data class PushProgress(val startedAt: Long, val acknowledged: Map<String, Long> = emptyMap())
 
@@ -90,6 +102,10 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
             // A new link uploads the device's existing records, including tombstones.
             it[CURSOR] = 0
             it[LAST_PUSH] = 0
+            it[SYNC_PROTOCOL] = 2
+            it.remove(PROTOCOL_RESET)
+            it.remove(KEPT_OWNER_ID)
+            it.remove(KEPT_OWNER_EMAIL)
             it[INITIAL_SYNC_PENDING] = true
             it.remove(PUSH_STARTED)
             it.remove(PUSH_ACKNOWLEDGED)
@@ -117,8 +133,12 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
         }
     }
 
-    suspend fun setGuest() {
+    suspend fun setGuest(keepLocalOwner: Boolean = false) {
         store.edit {
+            if (keepLocalOwner && it[ACCOUNT] == AccountType.GOOGLE.name) {
+                it[USER_ID]?.let { owner -> it[KEPT_OWNER_ID] = owner }
+                it[EMAIL]?.let { email -> it[KEPT_OWNER_EMAIL] = email }
+            }
             it[ACCOUNT] = AccountType.GUEST.name
             listOf(USER_ID, EMAIL, ACCESS, REFRESH).forEach { key -> it.remove(key) }
             it.remove(NEEDS_LOGIN)
@@ -127,6 +147,18 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
             it.remove(INITIAL_SYNC_PENDING)
             it.remove(PUSH_STARTED)
             it.remove(PUSH_ACKNOWLEDGED)
+        }
+    }
+
+    /** Persist the reset separately so a paged or interrupted upgrade resumes its pull. */
+    suspend fun prepareProtocolUpgrade() {
+        store.edit {
+            if ((it[SYNC_PROTOCOL] ?: 1) < 2 && it[PROTOCOL_RESET] != true) {
+                it[CURSOR] = 0
+                it[PROTOCOL_RESET] = true
+                it.remove(PUSH_STARTED)
+                it.remove(PUSH_ACKNOWLEDGED)
+            }
         }
     }
 
@@ -151,6 +183,8 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
         store.edit {
             it[LAST_PUSH] = time
             it[INITIAL_SYNC_PENDING] = false
+            it[SYNC_PROTOCOL] = 2
+            it.remove(PROTOCOL_RESET)
             it.remove(PUSH_STARTED)
             it.remove(PUSH_ACKNOWLEDGED)
         }
@@ -182,6 +216,7 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
                 (p[NEEDS_LOGIN] == true || tokens == null || p[USER_ID].isNullOrBlank()),
                 initialSyncPending = account == AccountType.GOOGLE && p[INITIAL_SYNC_PENDING] == true),
             tokens, p[CURSOR] ?: 0, p[LAST_PUSH] ?: 0,
+            p[KEPT_OWNER_ID], p[KEPT_OWNER_EMAIL], p[SYNC_PROTOCOL] ?: 1,
         )
     }
 
@@ -219,11 +254,15 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
         val ACCOUNT = stringPreferencesKey("account")
         val USER_ID = stringPreferencesKey("user_id")
         val EMAIL = stringPreferencesKey("email")
+        val KEPT_OWNER_ID = stringPreferencesKey("kept_owner_id")
+        val KEPT_OWNER_EMAIL = stringPreferencesKey("kept_owner_email")
         val ACCESS = stringPreferencesKey("access_encrypted")
         val REFRESH = stringPreferencesKey("refresh_encrypted")
         val NEEDS_LOGIN = booleanPreferencesKey("needs_login")
         val CURSOR = longPreferencesKey("sync_cursor")
         val LAST_PUSH = longPreferencesKey("last_push_at")
+        val SYNC_PROTOCOL = intPreferencesKey("sync_protocol")
+        val PROTOCOL_RESET = booleanPreferencesKey("sync_protocol_reset")
         val INITIAL_SYNC_PENDING = booleanPreferencesKey("initial_sync_pending")
         val PUSH_STARTED = longPreferencesKey("push_started_at")
         val PUSH_ACKNOWLEDGED = stringPreferencesKey("push_acknowledged")

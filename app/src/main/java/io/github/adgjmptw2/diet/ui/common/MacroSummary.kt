@@ -36,9 +36,9 @@ fun MacroSummary(meals: List<MealEntry>) {
                 if (value > 0) Box(Modifier.weight(value.toFloat()).fillMaxHeight().background(barColors[i]))
             }
         }
-        if (!ratio.hasEnergy) Text("탄단지 비율을 계산할 정보 없음",
+    if (!ratio.hasEnergy) Text("탄·단·지 비율을 계산할 정보 없음",
             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-        if (ratio.missingCount > 0) Text("탄단지 정보 없는 음식 ${ratio.missingCount}개는 빠졌어요",
+    if (ratio.missingCount > 0) Text("탄·단·지 정보 없는 음식 ${ratio.missingCount}개는 빠졌어요",
             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
     }
 }

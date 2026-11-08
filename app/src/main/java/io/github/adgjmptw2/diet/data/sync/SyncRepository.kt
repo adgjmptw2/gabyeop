@@ -26,6 +26,8 @@ class SyncRepository @Inject constructor(
 ) {
     private val syncing = MutableStateFlow(false)
     val isSyncing = syncing.asStateFlow()
+    private val _message = MutableStateFlow<String?>(null)
+    val message = _message.asStateFlow()
     private val appliedVersions = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     /** Remote merges do not schedule an endless series of echo uploads. */
@@ -44,8 +46,10 @@ class SyncRepository @Inject constructor(
 
     /** Caller must own SessionLock (also used for the initial Google login sync). */
     internal suspend fun syncLocked(): Boolean = withContext(Dispatchers.IO) {
+        if (!tokens.snapshot().state.canSync) return@withContext true
+        tokens.prepareProtocolUpgrade()
         val auth = tokens.snapshot()
-        if (!auth.state.canSync) return@withContext true
+        val restoreNewFields = auth.syncProtocol < 2 || auth.state.initialSyncPending
         syncing.value = true
         try {
             val progress = tokens.pushProgress() ?: PushProgress(clock.millis())
@@ -91,12 +95,14 @@ class SyncRepository @Inject constructor(
                     capacity = (capacity / 2).coerceAtLeast(1)
                 }
                 val response = api.sync(request)
+                response.requireCurrentProtocol()
+                _message.value = null
                 if (response.cursor < cursor || (response.more && response.cursor == cursor)) {
                     throw IOException("잘못된 동기화 커서")
                 }
                 db.withTransaction {
                     response.profile?.entity()?.let { incoming ->
-                        MergeRules.profile(db.profileDao().current(), incoming)?.let {
+                        MergeRules.profile(db.profileDao().current(), incoming, restoreNewFields)?.let {
                             db.profileDao().upsert(it)
                             appliedVersions["profile"] = it.updatedAt
                         }
@@ -104,7 +110,7 @@ class SyncRepository @Inject constructor(
                     response.weights.sortedBy { it.updatedAt }.forEach { row ->
                         val incoming = row.entity()
                         val change = MergeRules.weight(db.weightDao().byId(row.id),
-                            db.weightDao().findByDay(row.epochDay), incoming)
+                            db.weightDao().findByDay(row.epochDay), incoming, restoreNewFields)
                         if (change != null) {
                             change.deleteId?.let { db.weightDao().deleteById(it) }
                             db.weightDao().upsert(change.upsert)
@@ -118,7 +124,7 @@ class SyncRepository @Inject constructor(
                         }
                     }
                     response.notes.forEach { row ->
-                        MergeRules.note(db.dayNoteDao().byDay(row.epochDay), row.entity())?.let {
+                        MergeRules.note(db.dayNoteDao().byDay(row.epochDay), row.entity(), restoreNewFields)?.let {
                             db.dayNoteDao().upsert(it)
                             appliedVersions["n:${row.epochDay}"] = row.updatedAt
                         }
@@ -162,6 +168,9 @@ class SyncRepository @Inject constructor(
             }
             // Do not advance the push watermark when some rows/pages are still outstanding.
             return@withContext false
+        } catch (failure: ServerUpdateRequiredException) {
+            _message.value = failure.message
+            throw failure
         } finally {
             syncing.value = false
         }

@@ -86,7 +86,7 @@ interface FoodDao {
     @Upsert
     suspend fun upsert(row: FoodEntity)
 
-    @Query("SELECT * FROM food WHERE id = :id")
+    @Query("SELECT * FROM food WHERE id = :id AND deleted = 0")
     suspend fun byId(id: String): FoodEntity?
 
     @Query("SELECT * FROM food WHERE custom = 1 AND deleted = 0 ORDER BY updatedAt DESC")

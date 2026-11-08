@@ -25,6 +25,7 @@ class DeviceDataCleaner @Inject constructor(
     suspend fun clear() = withContext(Dispatchers.IO) {
         db.clearAllTables()
         fastGoals.cancel()
+        context.getSharedPreferences("fast_notifications", Context.MODE_PRIVATE).edit().clear().commit()
         tracking.clear()
         foods.resetImportState()
         // Photo and export folders are confined to this application's private roots.

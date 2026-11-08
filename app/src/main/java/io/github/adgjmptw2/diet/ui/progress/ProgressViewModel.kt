@@ -13,6 +13,7 @@ import io.github.adgjmptw2.diet.domain.WeightEntry
 import io.github.adgjmptw2.diet.domain.badges
 import io.github.adgjmptw2.diet.domain.expectedGoalDate
 import io.github.adgjmptw2.diet.domain.sevenDayAverages
+import io.github.adgjmptw2.diet.domain.monthWeightChange
 import io.github.adgjmptw2.diet.ui.common.todayDates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.LocalDate
+import java.time.YearMonth
 import javax.inject.Inject
 
 enum class ProgressPeriod(val label: String, val days: Long?) {
@@ -63,9 +65,6 @@ class ProgressViewModel @Inject constructor(
         val entries = weights.filter { it.date <= today }.distinctBy { it.date }.sortedBy { it.date }
         val from = selected.days?.let { today.minusDays(it - 1) } ?: entries.firstOrNull()?.date ?: today.minusDays(29)
         val currentKg = entries.lastOrNull()?.weightKg
-        val monthStart = today.withDayOfMonth(1)
-        val monthEntries = entries.filter { it.date >= monthStart }
-        val monthBaseline = entries.lastOrNull { it.date < monthStart } ?: monthEntries.firstOrNull()
         ProgressUiState(
             today = today,
             profile = profile,
@@ -75,7 +74,7 @@ class ProgressViewModel @Inject constructor(
             // 선택 기간 직전 6일도 평균 계산에 포함한 뒤 화면 범위로 자른다.
             averages = sevenDayAverages(entries, today).filter { it.date >= from },
             lostKg = currentKg?.let { profile.startWeightKg - it },
-            monthChangeKg = monthEntries.lastOrNull()?.let { latest -> monthBaseline?.let { latest.weightKg - it.weightKg } },
+            monthChangeKg = monthWeightChange(entries, YearMonth.from(today)),
             goalDate = expectedGoalDate(entries, profile.targetWeightKg, today),
             goalDateUnavailable = entries.filter { it.date >= today.minusDays(27) && it.date <= today }
                 .distinctBy { it.date }.size >= 4,

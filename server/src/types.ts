@@ -64,6 +64,7 @@ export interface SyncRequest {
 }
 
 export interface SyncResponse {
+  protocol: 2;
   fasts: SyncFast[];
   cursor: number;
   profile: SyncProfile | null;

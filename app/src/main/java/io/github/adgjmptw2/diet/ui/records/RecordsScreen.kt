@@ -80,9 +80,9 @@ fun RecordsScreen(isActive: Boolean = true, openTodayRequest: Long = 0, vm: Reco
                 item {
                     val entries = s.weights.filter { YearMonth.from(it.date) == month && it.date <= s.today }.sortedBy { it.date }
                     val average = entries.takeIf { it.isNotEmpty() }?.map { it.weightKg }?.average()
-                    val change = if (entries.isEmpty()) null else entries.last().weightKg - entries.first().weightKg
-                    Text("기록 ${entries.size}일 · 평균 ${average?.kg() ?: "—"} kg · " +
-                        "${if (month == YearMonth.from(s.today)) "이번 달" else "${month.monthValue}월"} ${signedKg(change)}",
+                    val change = monthWeightChange(s.weights.filter { it.date <= s.today }, month)
+                    Text("기록 ${entries.size}일 · 평균 ${average?.kg() ?: "—"} kg" +
+                        (change?.let { " · ${if (month == YearMonth.from(s.today)) "이번 달" else "${month.monthValue}월"} ${signedKg(it)}" } ?: ""),
                         style = MaterialTheme.typography.bodySmall.tabularNumbers(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

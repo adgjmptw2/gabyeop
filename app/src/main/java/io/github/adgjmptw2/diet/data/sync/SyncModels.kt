@@ -27,7 +27,14 @@ data class SyncResponse(
     val more: Boolean = false,
     val rejected: List<String> = emptyList(),
     val fasts: List<SyncFast> = emptyList(),
+    val protocol: Int = 1,
 )
+
+internal fun SyncResponse.requireCurrentProtocol() {
+    if (protocol < 2) throw ServerUpdateRequiredException()
+}
+
+class ServerUpdateRequiredException : java.io.IOException("서버 업데이트를 기다리는 중이에요")
 
 @Serializable
 data class SyncProfile(

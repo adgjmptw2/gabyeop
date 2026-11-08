@@ -30,6 +30,12 @@ data class DayDetailState(
 data class DaySaveState(val date: LocalDate? = null, val saving: Boolean = false,
     val success: Boolean = false, val error: String? = null)
 
+/** Null follows stored data; even an empty string is an unsaved user edit. */
+data class DayDraft(
+    val weight: String? = null, val bodyFat: String? = null,
+    val memo: String? = null, val note: String? = null,
+)
+
 data class RecordsUiState(
     val today: LocalDate, val weeks: List<WeekSummary>, val days: Map<LocalDate, RecordDay>,
     val weekCells: List<DayCell> = emptyList(), val notes: Map<LocalDate, DailyNote> = emptyMap(),
@@ -47,6 +53,27 @@ class RecordsViewModel @Inject constructor(
 ) : ViewModel() {
     private val _saveState = MutableStateFlow(DaySaveState())
     val saveState = _saveState.asStateFlow()
+    private val _drafts = MutableStateFlow<Map<LocalDate, DayDraft>>(emptyMap())
+    val drafts = _drafts.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            // DeviceDataCleaner removes the profile along with the saved records.
+            profiles.profile.collect { if (it == null) _drafts.value = emptyMap() }
+        }
+    }
+
+    fun updateDraft(date: LocalDate, change: (DayDraft) -> DayDraft) {
+        if (_saveState.value.date == date && _saveState.value.saving) return
+        _drafts.update { it + (date to change(it[date] ?: DayDraft())) }
+    }
+
+    private fun clearDraftFields(date: LocalDate, change: (DayDraft) -> DayDraft) {
+        _drafts.update { drafts ->
+            val cleared = drafts[date]?.let(change)
+            if (cleared == null || cleared == DayDraft()) drafts - date else drafts + (date to cleared)
+        }
+    }
     private val datedMeals = todayDates(clock).flatMapLatest { today ->
         meals.range(LocalDate.of(1900, 1, 1), today).map { today to it }
     }
@@ -64,7 +91,7 @@ class RecordsViewModel @Inject constructor(
             summaries.firstOrNull { today in it.start..it.end }, entries, profile, fastRows)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    fun saveDay(date: LocalDate, weightKg: Double?, weightId: String?, memo: String, note: String,
+    fun saveDay(date: LocalDate, weightKg: Double?, memo: String, note: String,
         bodyFatPct: Double? = null) {
         if (_saveState.value.saving || date > LocalDate.now(clock)) return
         _saveState.value = DaySaveState(date, saving = true)
@@ -72,13 +99,26 @@ class RecordsViewModel @Inject constructor(
             try {
                 require(weightKg != null || bodyFatPct == null)
                 db.withTransaction {
-                    if (weightKg == null) weightId?.let { weights.delete(it) }
-                    else weights.save(date, weightKg, bodyFatPct)
+                    if (weightKg != null) weights.save(date, weightKg, bodyFatPct)
                     dayNotes.save(date, memo, note)
                 }
+                _drafts.update { it - date }
                 _saveState.value = DaySaveState(date, success = true)
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { _saveState.value = DaySaveState(date, error = "저장하지 못했어요") }
+        }
+    }
+
+    fun deleteWeight(date: LocalDate, id: String) {
+        if (_saveState.value.saving || date > LocalDate.now(clock)) return
+        _saveState.value = DaySaveState(date, saving = true)
+        viewModelScope.launch {
+            try {
+                weights.delete(id)
+                clearDraftFields(date) { it.copy(weight = null, bodyFat = null) }
+                _saveState.value = DaySaveState(date, success = true)
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { _saveState.value = DaySaveState(date, error = "체중을 지우지 못했어요") }
         }
     }
 
@@ -88,6 +128,7 @@ class RecordsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 dayNotes.clear(date)
+                clearDraftFields(date) { it.copy(memo = null, note = null) }
                 _saveState.value = DaySaveState(date, success = true)
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { _saveState.value = DaySaveState(date, error = "메모를 지우지 못했어요") }

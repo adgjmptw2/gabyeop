@@ -14,8 +14,8 @@ object Fasting {
         FastStage(4, "혈당 안정", "혈당이 내려와 저장된 에너지를 쓰기 시작해요"),
         FastStage(8, "저장된 당 쓰는 중", "간에 저장된 당이 줄고 지방을 쓰는 비율이 늘어요"),
         FastStage(12, "지방을 더 쓰는 구간", "지방을 주로 쓰고 케톤이 조금씩 만들어져요"),
-        FastStage(18, "케톤 증가", "케톤이 더 늘어요. 어지러우면 멈추세요"),
-        FastStage(24, "긴 단식", "오래 굶는 건 의사와 상의하세요"),
+        FastStage(18, "케톤 증가", "케톤이 더 늘어요. 어지러우면 단식을 멈추고 드세요"),
+        FastStage(24, "긴 단식", "24시간 넘는 단식은 의사와 상의하세요"),
     )
     fun elapsedMillis(startAt: Long, now: Long, endAt: Long? = null): Long =
         ((endAt ?: now) - startAt).coerceAtLeast(0)

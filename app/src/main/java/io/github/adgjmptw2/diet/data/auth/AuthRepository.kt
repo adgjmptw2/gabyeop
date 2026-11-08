@@ -66,13 +66,13 @@ class AuthRepository @Inject constructor(
             session.mutex.withLock {
                 val result = api.signIn(idToken)
                 require(result.user.id.isNotBlank() && result.accessToken.isNotBlank() && result.refreshToken.isNotBlank())
-                val previous = tokens.snapshot().state
-                if (previous.account == AccountType.GOOGLE && previous.userId != null && previous.userId != result.user.id) {
+                val conflict = tokens.snapshot().ownerConflict(result.user.id)
+                if (conflict != null) {
                     // 이 기기의 기록이 다른 사람 계정에 섞이지 않게, 원래 계정으로만 다시 로그인한다.
                     try { api.logout(result.refreshToken) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { }
-                    return@withLock SignInResult.Failed("처음 쓰던 Google 계정(${previous.email.orEmpty()})으로 로그인해 주세요")
+                    return@withLock SignInResult.Failed(conflict)
                 }
                 tokens.setGoogle(result.user.id, result.user.email, Tokens(result.accessToken, result.refreshToken))
                 val complete = try {
@@ -112,7 +112,8 @@ class AuthRepository @Inject constructor(
                 catch (_: IOException) { /* Offline sign-out still removes this device's tokens. */ }
             }
             withContext(NonCancellable) {
-                tokens.setGuest()
+                // Keep the owner until erasure succeeds, including a failed cleanup.
+                tokens.setGuest(keepLocalOwner = true)
                 scheduler.cancel()
                 if (!keepLocal) {
                     reminders.cancel()
@@ -123,13 +124,15 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    suspend fun clearDeviceData() = signOut(keepLocal = false)
+
     suspend fun deleteAccount() = actions.withLock {
         session.mutex.withLock {
             if (!tokens.snapshot().state.canSync) throw LoginRequiredException()
             api.deleteAccount()
             // Server deletion must succeed before any device data is removed.
             withContext(NonCancellable) {
-                tokens.setGuest()
+                tokens.setGuest(keepLocalOwner = true)
                 scheduler.cancel()
                 reminders.cancel()
                 cleaner.clear()

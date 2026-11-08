@@ -5,7 +5,7 @@ import {
 } from "./merge";
 import { HttpError } from "./http";
 import type { ParsedSync } from "./validate";
-import type { SyncFast, SyncMeal, SyncNote, SyncProfile, SyncWeight } from "./types";
+import type { SyncFast, SyncMeal, SyncNote, SyncProfile, SyncResponse, SyncWeight } from "./types";
 
 export const RESPONSE_LIMIT = 2_000;
 const SEQ_BLOCK = 1_000_000;
@@ -77,16 +77,7 @@ interface Statement {
     "fastWrite" | "pageProfile" | "pageWeights" | "pageMeals" | "pageNotes" | "pageFasts";
 }
 
-export interface SyncResult {
-  cursor: number;
-  profile: SyncProfile | null;
-  weights: SyncWeight[];
-  meals: SyncMeal[];
-  notes: SyncNote[];
-  fasts: SyncFast[];
-  more: boolean;
-  rejected: string[];
-}
+export type SyncResult = SyncResponse;
 
 export async function syncUser(db: D1Database, userId: string, request: ParsedSync): Promise<SyncResult> {
   const records = await db.batch([
@@ -453,6 +444,7 @@ export function selectPage(
   const cursor = last === undefined ? since : Math.max(since, last.seq);
 
   return {
+    protocol: 2,
     cursor,
     profile: profile === null ? null : stripSeq(profile),
     weights: weights.map(wireWeight),
@@ -474,10 +466,12 @@ function parseStoredProfile(row: ProfileDatabaseRow): (SyncProfile & { seq: numb
   }
 }
 
-function planProfile(stored: (SyncProfile & { seq: number }) | null, incoming: SyncProfile | null): ProfileRow | null {
+export function planProfile(stored: (SyncProfile & { seq: number }) | null, incoming: SyncProfile | null): ProfileRow | null {
   if (incoming === null) return null;
   if (stored !== null && !preferProfile(incoming, stored)) return null;
-  return { ...incoming, seq: 0 };
+  return { ...incoming,
+    calorieTarget: incoming.calorieTarget === undefined ? stored?.calorieTarget ?? null : incoming.calorieTarget,
+    seq: 0 };
 }
 
 function planMeals(stored: readonly StoredMeal[], incoming: readonly SyncMeal[]): Array<StoredMeal & { seq: number }> {

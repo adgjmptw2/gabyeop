@@ -52,6 +52,7 @@ import io.github.adgjmptw2.diet.data.ProfileRepository
 import io.github.adgjmptw2.diet.data.auth.AccountType
 import io.github.adgjmptw2.diet.data.auth.AuthRepository
 import io.github.adgjmptw2.diet.data.settings.ThemeStore
+import io.github.adgjmptw2.diet.data.sync.SyncRepository
 import io.github.adgjmptw2.diet.ui.home.HomeScreen
 import io.github.adgjmptw2.diet.ui.meals.MealsScreen
 import io.github.adgjmptw2.diet.ui.onboarding.OnboardingScreen
@@ -79,7 +80,11 @@ class RootViewModel @Inject constructor(
     repo: ProfileRepository,
     auth: AuthRepository,
     private val themes: ThemeStore,
+    sync: SyncRepository,
 ) : ViewModel() {
+    val syncMessage = combine(sync.message, auth.state) { message, account ->
+        message.takeIf { account.canSync }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     private val selectedTheme = MutableStateFlow<AppTheme?>(null)
     private val themeWrites = Mutex()
     private var themeSelectionVersion = 0L
@@ -128,6 +133,7 @@ class RootViewModel @Inject constructor(
 @Composable
 fun AppRoot(vm: RootViewModel = hiltViewModel(), recordTodayRequest: Long = 0, mealsRequest: Long = 0) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val syncMessage by vm.syncMessage.collectAsStateWithLifecycle()
     var editingProfile by rememberSaveable { mutableStateOf(false) }
     var showingSettings by rememberSaveable { mutableStateOf(false) }
     val mainState = rememberSaveableStateHolder()
@@ -162,7 +168,7 @@ fun AppRoot(vm: RootViewModel = hiltViewModel(), recordTodayRequest: Long = 0, m
         } else {
             mainState.SaveableStateProvider("main") {
                 MainScaffold(onEditProfile = { showingSettings = true },
-                    recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest)
+                    recordTodayRequest = recordTodayRequest, mealsRequest = mealsRequest, syncMessage = syncMessage)
             }
         }
     }
@@ -185,7 +191,7 @@ private enum class Tab(val label: String, @DrawableRes val icon: Int) {
 }
 
 @Composable
-private fun MainScaffold(onEditProfile: () -> Unit, recordTodayRequest: Long, mealsRequest: Long) {
+private fun MainScaffold(onEditProfile: () -> Unit, recordTodayRequest: Long, mealsRequest: Long, syncMessage: String?) {
     val tabs = Tab.entries
     val pager = rememberPagerState { tabs.size }
     val scope = rememberCoroutineScope()
@@ -202,6 +208,10 @@ private fun MainScaffold(onEditProfile: () -> Unit, recordTodayRequest: Long, me
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             Column {
+                syncMessage?.let {
+                    Text(it, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                     tabs.forEachIndexed { i, tab ->

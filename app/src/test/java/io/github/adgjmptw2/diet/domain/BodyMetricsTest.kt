@@ -12,7 +12,7 @@ class BodyMetricsTest {
     }
     @Test fun koreanBmiCategoryBoundaries() {
         listOf(18.49 to "저체중", 18.5 to "정상", 23.0 to "비만 전단계",
-            25.0 to "1단계 비만", 30.0 to "2단계", 35.0 to "3단계").forEach { (value, label) ->
+            25.0 to "1단계 비만", 30.0 to "2단계 비만", 35.0 to "3단계 비만").forEach { (value, label) ->
             assertEquals(label, BodyMetrics.category(value))
         }
     }

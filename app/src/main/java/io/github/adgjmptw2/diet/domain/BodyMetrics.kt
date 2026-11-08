@@ -9,8 +9,8 @@ object BodyMetrics {
         bmi < 23 -> "정상"
         bmi < 25 -> "비만 전단계"
         bmi < 30 -> "1단계 비만"
-        bmi < 35 -> "2단계"
-        else -> "3단계"
+        bmi < 35 -> "2단계 비만"
+        else -> "3단계 비만"
     }
     fun estimateBodyFat(bmi: Double, age: Int, sex: Sex): Double =
         1.2 * bmi + 0.23 * age - (if (sex == Sex.MALE) 10.8 else 0.0) - 5.4
