@@ -23,13 +23,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
-import kotlin.math.roundToLong
 import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
-
-data class RecentRow(val entry: WeightEntry, val diffKg: Double?)
 
 data class HomeUiState(
     val today: LocalDate,
@@ -37,8 +33,6 @@ data class HomeUiState(
     val progress: GoalProgress,
     val calories: CalorieTarget,
     val todayEntry: WeightEntry?,
-    val recent: List<RecentRow>,
-    val recordedDays: Set<LocalDate>,
     val todayKcal: Double = 0.0,
 )
 
@@ -46,7 +40,7 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     profiles: ProfileRepository,
-    private val weights: WeightRepository,
+    weights: WeightRepository,
     private val clock: Clock,
     meals: MealRepository,
 ) : ViewModel() {
@@ -65,37 +59,19 @@ class HomeViewModel @Inject constructor(
             build(profile, entries, day.first, day.second)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun save(date: LocalDate, kg: Double) {
-        viewModelScope.launch { weights.save(date, kg) }
-    }
-
-    fun delete(id: String) {
-        viewModelScope.launch { weights.delete(id) }
-    }
-
     companion object {
-        const val RECENT_COUNT = 10
-
         /** entries는 최신 날짜가 앞 */
         fun build(profile: Profile, entries: List<WeightEntry>, today: LocalDate, todayKcal: Double = 0.0): HomeUiState {
             val current = entries.firstOrNull { !it.date.isAfter(today) }?.weightKg ?: profile.startWeightKg
             val progress = Goal.progress(profile.startWeightKg, profile.targetWeightKg, current)
-            val recent = entries.take(RECENT_COUNT).mapIndexed { i, e ->
-                RecentRow(e, entries.getOrNull(i + 1)?.let { weightDiffKg(e.weightKg, it.weightKg) })
-            }
             return HomeUiState(
                 today = today,
                 profile = profile,
                 progress = progress,
                 calories = Calories.target(profile, current, today, progress.reached),
                 todayEntry = entries.firstOrNull { it.date == today },
-                recent = recent,
-                recordedDays = entries.mapTo(HashSet()) { it.date },
                 todayKcal = todayKcal,
             )
         }
-
-        private fun weightDiffKg(newerKg: Double, olderKg: Double): Double =
-            ((newerKg - olderKg) * 10).roundToLong() / 10.0
     }
 }

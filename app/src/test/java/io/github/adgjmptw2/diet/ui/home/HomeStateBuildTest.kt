@@ -39,8 +39,6 @@ class HomeStateBuildTest {
         assertEquals(0, state.progress.percent)
         assertFalse(state.progress.reached)
         assertNull(state.todayEntry)
-        assertTrue(state.recent.isEmpty())
-        assertTrue(state.recordedDays.isEmpty())
     }
 
     @Test
@@ -55,8 +53,6 @@ class HomeStateBuildTest {
 
         assertEquals(77.0, state.progress.currentKg, 0.0)
         assertEquals(77.0, state.todayEntry?.weightKg ?: 0.0, 0.0)
-        assertEquals(3, state.recent.size)
-        assertTrue(today in state.recordedDays)
     }
 
     @Test
@@ -69,69 +65,5 @@ class HomeStateBuildTest {
         val state = HomeViewModel.build(profile, entries, today)
 
         assertNull(state.todayEntry)
-    }
-
-    @Test
-    fun `최근 기록의 차이는 직전 기록과의 차이이다`() {
-        val entries = listOf(
-            entry(today, 77.0),
-            entry(today.minusDays(1), 78.0),
-            entry(today.minusDays(2), 79.0),
-        )
-
-        val state = HomeViewModel.build(profile, entries, today)
-
-        assertEquals(-1.0, state.recent[0].diffKg ?: 0.0, 0.0)
-        assertEquals(-1.0, state.recent[1].diffKg ?: 0.0, 0.0)
-        assertNull(state.recent[2].diffKg)
-    }
-
-    @Test
-    fun `최근 기록은 10개까지만 보여준다`() {
-        val entries = (0L..11L).map { offset ->
-            entry(today.minusDays(offset), 80.0 - offset / 10.0)
-        }
-
-        val state = HomeViewModel.build(profile, entries, today)
-
-        assertEquals(HomeViewModel.RECENT_COUNT, state.recent.size)
-        assertEquals(today, state.recent[0].entry.date)
-        assertEquals(today.minusDays(9), state.recent[9].entry.date)
-        assertEquals(12, state.recordedDays.size)
-    }
-
-    @Test
-    fun `부동소수점 차이를 0_1kg 단위로 맞춘다`() {
-        val entries = listOf(
-            entry(today, 77.6),
-            entry(today.minusDays(1), 70.0),
-        )
-
-        val state = HomeViewModel.build(profile, entries, today)
-
-        assertEquals(7.6, state.recent[0].diffKg ?: 0.0, 0.0)
-    }
-
-    @Test
-    fun `같은 체중은 차이가 0이다`() {
-        val entries = listOf(
-            entry(today, 77.0),
-            entry(today.minusDays(1), 77.0),
-        )
-
-        val state = HomeViewModel.build(profile, entries, today)
-
-        assertEquals(0.0, state.recent[0].diffKg ?: 0.0, 0.0)
-    }
-
-    @Test
-    fun `10번째 최근 기록의 차이는 그다음 기록을 쓴다`() {
-        val entries = (0L..10L).map { offset ->
-            entry(today.minusDays(offset), 80.0 - offset / 10.0)
-        }
-
-        val state = HomeViewModel.build(profile, entries, today)
-
-        assertEquals(0.1, state.recent[9].diffKg ?: 0.0, 0.0)
     }
 }
