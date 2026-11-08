@@ -51,6 +51,7 @@ import io.github.adgjmptw2.diet.ui.common.absKg
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
 import io.github.adgjmptw2.diet.ui.theme.GainColor
+import io.github.adgjmptw2.diet.ui.theme.DecorationKind
 import io.github.adgjmptw2.diet.ui.theme.ThemeDecoration
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import kotlin.math.roundToInt
@@ -114,7 +115,7 @@ fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
                     if (s.recent.isEmpty()) {
                         Row(Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ThemeDecoration()
+                            ThemeDecoration(Modifier.size(72.dp), kind = DecorationKind.SIT)
                             Text(
                                 "기록 없음",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -188,7 +189,7 @@ private fun GoalCard(s: HomeUiState) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                ThemeDecoration(Modifier.size(60.dp, 44.dp))
+                ThemeDecoration()
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(

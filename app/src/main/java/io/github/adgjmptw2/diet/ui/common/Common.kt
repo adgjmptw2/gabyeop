@@ -73,7 +73,7 @@ fun ProgressRing(
             style = MaterialTheme.typography.headlineMedium.tabularNumbers(),
         )
         if (showThemeDecoration) {
-            BunnyRingEars(Modifier.align(Alignment.TopCenter).offset(y = (-16).dp))
+            BunnyRingEars(Modifier.align(Alignment.TopCenter).offset(y = (-26).dp))
         }
     }
 }

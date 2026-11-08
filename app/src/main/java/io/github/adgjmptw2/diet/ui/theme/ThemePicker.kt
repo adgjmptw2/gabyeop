@@ -80,7 +80,7 @@ fun ThemePicker(
                                 strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
                             drawCircle(colors.tertiary, 2.dp.toPx(), Offset(w * 0.72f, h * 0.7f))
                         }
-                        ThemeDecoration(Modifier.align(Alignment.TopEnd).size(28.dp, 25.dp), theme, colors)
+                        ThemeDecoration(Modifier.align(Alignment.TopEnd).size(34.dp, 26.dp), theme = theme, colors = colors)
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(2.dp)) {

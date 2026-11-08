@@ -30,6 +30,7 @@ import io.github.adgjmptw2.diet.data.auth.AuthRepository
 import io.github.adgjmptw2.diet.data.auth.AuthState
 import io.github.adgjmptw2.diet.data.auth.SignInResult
 import io.github.adgjmptw2.diet.data.sync.SyncRepository
+import io.github.adgjmptw2.diet.ui.theme.DecorationKind
 import io.github.adgjmptw2.diet.ui.theme.ThemeDecoration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
@@ -87,7 +88,7 @@ fun WelcomeScreen(vm: WelcomeViewModel = hiltViewModel()) {
         Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
     ) {
-        ThemeDecoration()
+        ThemeDecoration(kind = DecorationKind.SIT)
         Text("가볍게", style = MaterialTheme.typography.displaySmall)
         Text("체중과 식단을 기록하는 일상", style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
