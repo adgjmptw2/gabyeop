@@ -1,6 +1,5 @@
 package io.github.adgjmptw2.diet.ui.home
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,7 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,10 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,31 +39,20 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.adgjmptw2.diet.R
-import io.github.adgjmptw2.diet.domain.WeightEntry
 import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.common.ProgressRing
 import io.github.adgjmptw2.diet.ui.common.absKg
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
 import io.github.adgjmptw2.diet.ui.theme.GainColor
+import io.github.adgjmptw2.diet.ui.theme.ThemeDecoration
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import kotlin.math.roundToInt
-
-/** 다이얼로그 상태: 새 기록이면 entry = null */
-private data class Editing(val entry: WeightEntry?)
 
 @Composable
 fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val s = state ?: return Box(Modifier.fillMaxSize())
-    // 회전·다크 모드 전환에도 창이 남도록 열린 상태와 대상 id만 저장한다.
-    var editingOpen by rememberSaveable { mutableStateOf(false) }
-    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
-    val editing = if (!editingOpen) null else Editing(editingId?.let { id ->
-        s.todayEntry?.takeIf { it.id == id } ?: s.recent.firstOrNull { it.entry.id == id }?.entry
-    })
-    val openEditor = { entry: WeightEntry? -> editingId = entry?.id; editingOpen = true }
-    val closeEditor = { editingOpen = false; editingId = null }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -80,70 +65,8 @@ fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
         ) {
             item { Header(s, onEditProfile) }
             item { GoalCard(s) }
-            item {
-                // 떠 있는 버튼은 최근 기록을 가려서 카드 아래 일반 버튼으로 둠
-                Button(
-                    onClick = { openEditor(s.todayEntry) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = MaterialTheme.shapes.large,
-                ) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (s.todayEntry == null) "체중 기록" else "오늘 체중 수정",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
             item { CalorieCard(s) }
-            item {
-                Text(
-                    "최근 기록",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    if (s.recent.isEmpty()) {
-                        Text(
-                            "기록 없음",
-                            modifier = Modifier.padding(24.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        s.recent.forEachIndexed { index, row ->
-                            RecentItem(row, onClick = { openEditor(row.entry) })
-                            if (index < s.recent.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 16.dp),
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         }
-    }
-
-    editing?.let { e ->
-        WeightDialog(
-            today = s.today,
-            initialDate = e.entry?.date ?: s.today,
-            initialKg = e.entry?.weightKg,
-            dateLocked = e.entry != null,
-            recordedDays = s.recordedDays,
-            onSave = { date, kg -> vm.save(date, kg); closeEditor() },
-            onDelete = e.entry?.let { entry -> { vm.delete(entry.id); closeEditor() } },
-            onDismiss = { closeEditor() },
-        )
     }
 }
 
@@ -176,11 +99,15 @@ private fun GoalCard(s: HomeUiState) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Text(
-                "현재 체중",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "현재 체중",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ThemeDecoration()
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     p.currentKg.kg(),
@@ -204,6 +131,7 @@ private fun GoalCard(s: HomeUiState) {
                             p.percent,
                             modifier = Modifier.align(Alignment.CenterHorizontally),
                             size = (128.dp * fontScale.coerceAtLeast(1f)).coerceAtMost(maxWidth),
+                            showThemeDecoration = true,
                         )
                         GoalStats(s)
                     }
@@ -212,7 +140,7 @@ private fun GoalCard(s: HomeUiState) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                     ) {
-                        ProgressRing(p.percent)
+                        ProgressRing(p.percent, showThemeDecoration = true)
                         GoalStats(s, Modifier.weight(1f))
                     }
                 }
@@ -291,41 +219,5 @@ private fun CalorieCard(s: HomeUiState) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun RecentItem(row: RecentRow, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = "기록 수정", onClick = onClick)
-            .heightIn(min = 72.dp)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(row.entry.date.format(DayLabel), style = MaterialTheme.typography.bodyMedium.tabularNumbers())
-            row.diffKg?.let { d ->
-                val (sign, color) = when {
-                    d < -0.05 -> "▼" to MaterialTheme.colorScheme.primary
-                    d > 0.05 -> "▲" to GainColor
-                    else -> "-" to MaterialTheme.colorScheme.onSurfaceVariant
-                }
-                Text(
-                    if (sign == "-") "변화 없음" else "$sign ${d.absKg()}",
-                    style = MaterialTheme.typography.bodySmall.tabularNumbers(),
-                    color = color,
-                )
-            }
-        }
-        Text(
-            "${row.entry.weightKg.kg()} kg",
-            style = MaterialTheme.typography.bodyLarge.tabularNumbers(),
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-        )
     }
 }

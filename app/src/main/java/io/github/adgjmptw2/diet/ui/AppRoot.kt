@@ -14,6 +14,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +26,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,24 +49,67 @@ import io.github.adgjmptw2.diet.R
 import io.github.adgjmptw2.diet.data.ProfileRepository
 import io.github.adgjmptw2.diet.data.auth.AccountType
 import io.github.adgjmptw2.diet.data.auth.AuthRepository
+import io.github.adgjmptw2.diet.data.settings.ThemeStore
 import io.github.adgjmptw2.diet.ui.home.HomeScreen
 import io.github.adgjmptw2.diet.ui.meals.MealsScreen
 import io.github.adgjmptw2.diet.ui.onboarding.OnboardingScreen
 import io.github.adgjmptw2.diet.ui.progress.ProgressScreen
 import io.github.adgjmptw2.diet.ui.records.RecordsScreen
 import io.github.adgjmptw2.diet.ui.settings.SettingsScreen
+import io.github.adgjmptw2.diet.ui.theme.AppTheme
 import io.github.adgjmptw2.diet.ui.welcome.WelcomeScreen
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.io.IOException
 import javax.inject.Inject
 
 enum class RootState { LOADING, WELCOME, NEEDS_SETUP, READY }
 
 @HiltViewModel
-class RootViewModel @Inject constructor(repo: ProfileRepository, auth: AuthRepository) : ViewModel() {
+class RootViewModel @Inject constructor(
+    repo: ProfileRepository,
+    auth: AuthRepository,
+    private val themes: ThemeStore,
+) : ViewModel() {
+    private val selectedTheme = MutableStateFlow<AppTheme?>(null)
+    private val themeWrites = Mutex()
+    private var themeSelectionVersion = 0L
+    val theme: StateFlow<AppTheme> = combine(
+        themes.theme.onStart { emit(AppTheme.LIGHT) }, selectedTheme,
+    ) { saved, selected -> selected ?: saved }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.LIGHT)
+    var themeError by mutableStateOf<String?>(null)
+        private set
+
+    fun setTheme(theme: AppTheme) {
+        // 첫 읽기나 앞선 저장 결과가 늦게 와도 마지막 선택을 즉시 유지한다.
+        selectedTheme.value = theme
+        val version = ++themeSelectionVersion
+        themeError = null
+        viewModelScope.launch {
+            themeWrites.withLock {
+                if (version != themeSelectionVersion) return@withLock
+                try {
+                    themes.set(theme)
+                } catch (_: IOException) {
+                    if (version == themeSelectionVersion) {
+                        selectedTheme.value = null
+                        themeError = "테마를 저장하지 못했어요. 다시 선택해 주세요"
+                    }
+                }
+            }
+        }
+    }
+
+    fun dismissThemeError() { themeError = null }
+
     val state: StateFlow<RootState> = combine(repo.profile, auth.state) { profile, account ->
         when {
             account.signingIn -> RootState.LOADING
@@ -94,15 +139,25 @@ fun AppRoot(vm: RootViewModel = hiltViewModel()) {
     when (state) {
         RootState.LOADING -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         RootState.WELCOME -> WelcomeScreen()
-        RootState.NEEDS_SETUP -> OnboardingScreen(isEdit = false, onClose = {})
+        RootState.NEEDS_SETUP -> OnboardingScreen(isEdit = false, onClose = {}, onThemeSelected = vm::setTheme)
         RootState.READY -> if (editingProfile) {
             BackHandler { editingProfile = false }
-            OnboardingScreen(isEdit = true, onClose = { editingProfile = false })
+            OnboardingScreen(isEdit = true, onClose = { editingProfile = false }, onThemeSelected = vm::setTheme)
         } else if (showingSettings) {
-            SettingsScreen(onClose = { showingSettings = false }, onEditProfile = { editingProfile = true })
+            SettingsScreen(onClose = { showingSettings = false }, onEditProfile = { editingProfile = true },
+                onThemeSelected = vm::setTheme)
         } else {
             MainScaffold(onEditProfile = { showingSettings = true })
         }
+    }
+
+    vm.themeError?.let { message ->
+        AlertDialog(
+            onDismissRequest = vm::dismissThemeError,
+            title = { Text("테마 저장") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = vm::dismissThemeError) { Text("확인") } },
+        )
     }
 }
 

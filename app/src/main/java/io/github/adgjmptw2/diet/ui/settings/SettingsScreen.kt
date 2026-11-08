@@ -47,16 +47,24 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.adgjmptw2.diet.BuildConfig
 import io.github.adgjmptw2.diet.data.auth.AccountType
+import io.github.adgjmptw2.diet.ui.theme.AppTheme
+import io.github.adgjmptw2.diet.ui.theme.LocalAppTheme
+import io.github.adgjmptw2.diet.ui.theme.ThemePicker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-private enum class SettingsPage { MAIN, PRIVACY, LICENSES, FONT }
+private enum class SettingsPage { MAIN, THEME, PRIVACY, LICENSES, FONT }
 private enum class AccountDialog { LINK, LOGOUT, DELETE }
 
 @Composable
-fun SettingsScreen(onClose: () -> Unit, onEditProfile: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onClose: () -> Unit,
+    onEditProfile: () -> Unit,
+    onThemeSelected: (AppTheme) -> Unit,
+    vm: SettingsViewModel = hiltViewModel(),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
@@ -87,6 +95,7 @@ fun SettingsScreen(onClose: () -> Unit, onEditProfile: () -> Unit, vm: SettingsV
 
     val title = when (page) {
         SettingsPage.MAIN -> "설정"
+        SettingsPage.THEME -> "테마"
         SettingsPage.PRIVACY -> "개인정보처리방침"
         SettingsPage.LICENSES -> "오픈소스·데이터 출처"
         SettingsPage.FONT -> "Pretendard 글꼴 라이선스"
@@ -146,6 +155,9 @@ fun SettingsScreen(onClose: () -> Unit, onEditProfile: () -> Unit, vm: SettingsV
                     }
                     SettingsRow("데이터 내보내기", "체중·식단 CSV", !state.busy, onClick = vm::export)
                 }
+                SettingsGroup("화면") {
+                    SettingsRow("테마", LocalAppTheme.current.label, enabled = !state.busy) { page = SettingsPage.THEME }
+                }
                 SettingsGroup("앱 정보") {
                     SettingsRow("개인정보처리방침", enabled = !state.busy) {
                         browserError = null
@@ -157,6 +169,11 @@ fun SettingsScreen(onClose: () -> Unit, onEditProfile: () -> Unit, vm: SettingsV
                     SettingsRow("앱 버전", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                 }
             }
+            SettingsPage.THEME -> ThemePicker(
+                selected = LocalAppTheme.current,
+                onSelect = onThemeSelected,
+                enabled = !state.busy,
+            )
             SettingsPage.PRIVACY -> Text(LOCAL_PRIVACY, style = MaterialTheme.typography.bodyLarge)
             SettingsPage.LICENSES -> {
                 Text(LIBRARY_LICENSES, style = MaterialTheme.typography.bodyMedium)

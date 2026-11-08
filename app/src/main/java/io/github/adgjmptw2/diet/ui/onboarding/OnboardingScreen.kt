@@ -38,10 +38,19 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import io.github.adgjmptw2.diet.domain.ActivityLevel
 import io.github.adgjmptw2.diet.domain.Field
 import io.github.adgjmptw2.diet.domain.Sex
+import io.github.adgjmptw2.diet.ui.theme.AppTheme
+import io.github.adgjmptw2.diet.ui.theme.LocalAppTheme
+import io.github.adgjmptw2.diet.ui.theme.ThemeDecoration
+import io.github.adgjmptw2.diet.ui.theme.ThemePicker
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 
 @Composable
-fun OnboardingScreen(isEdit: Boolean, onClose: () -> Unit, vm: OnboardingViewModel = hiltViewModel()) {
+fun OnboardingScreen(
+    isEdit: Boolean,
+    onClose: () -> Unit,
+    onThemeSelected: (AppTheme) -> Unit,
+    vm: OnboardingViewModel = hiltViewModel(),
+) {
     LaunchedEffect(isEdit) { vm.load() }
     val input = vm.input
     val errors = vm.errors
@@ -56,13 +65,16 @@ fun OnboardingScreen(isEdit: Boolean, onClose: () -> Unit, vm: OnboardingViewMod
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (isEdit) "내 정보 수정" else "시작하기", style = MaterialTheme.typography.headlineLarge)
-            Text(
-                "하루 목표 칼로리 계산에 써요",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (isEdit) "내 정보 수정" else "시작하기", style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    "하루 목표 칼로리 계산에 써요",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (!isEdit) ThemeDecoration()
         }
 
         Card(
@@ -110,6 +122,13 @@ fun OnboardingScreen(isEdit: Boolean, onClose: () -> Unit, vm: OnboardingViewMod
                 NumberField("목표 체중", input.targetWeightKg, "kg", errors[Field.TARGET_WEIGHT]) {
                     vm.update(input.copy(targetWeightKg = it))
                 }
+            }
+        }
+
+        if (!isEdit) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("테마")
+                ThemePicker(selected = LocalAppTheme.current, onSelect = onThemeSelected, enabled = !vm.saving)
             }
         }
 

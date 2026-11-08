@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,6 +22,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.adgjmptw2.diet.ui.theme.BunnyRingEars
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
@@ -48,6 +50,7 @@ fun ProgressRing(
     stroke: Dp = 8.dp,
     color: Color = MaterialTheme.colorScheme.primary,
     track: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    showThemeDecoration: Boolean = false,
 ) {
     val progress = percent.coerceIn(0, 100)
     val sweep by animateFloatAsState(progress / 100f, tween(700), label = "ring")
@@ -69,5 +72,8 @@ fun ProgressRing(
             "$progress%",
             style = MaterialTheme.typography.headlineMedium.tabularNumbers(),
         )
+        if (showThemeDecoration) {
+            BunnyRingEars(Modifier.align(Alignment.TopCenter).offset(y = (-26).dp))
+        }
     }
 }
