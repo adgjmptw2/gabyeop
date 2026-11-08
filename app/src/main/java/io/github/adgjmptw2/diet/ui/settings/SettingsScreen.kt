@@ -121,7 +121,7 @@ fun SettingsScreen(
                 SettingsGroup("계정") {
                     val google = state.account.account == AccountType.GOOGLE
                     SettingsRow(if (google) "Google 계정" else "게스트",
-                        if (google) state.account.email.orEmpty() else "이 기기에 기록을 저장해요")
+                        if (google) state.account.email.orEmpty() else "기록은 이 기기에만 있고 어디로도 보내지 않아요")
                     if (state.account.needsReauthentication) {
                         Text("다시 로그인이 필요해요", color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(16.dp))
