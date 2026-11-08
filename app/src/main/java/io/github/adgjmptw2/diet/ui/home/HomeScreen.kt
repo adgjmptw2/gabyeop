@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,6 +51,7 @@ import io.github.adgjmptw2.diet.ui.common.absKg
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
 import io.github.adgjmptw2.diet.ui.theme.GainColor
+import io.github.adgjmptw2.diet.ui.theme.ThemeDecoration
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import kotlin.math.roundToInt
 
@@ -110,12 +112,15 @@ fun HomeScreen(onEditProfile: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
                     if (s.recent.isEmpty()) {
-                        Text(
-                            "기록 없음",
-                            modifier = Modifier.padding(24.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ThemeDecoration()
+                            Text(
+                                "기록 없음",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     } else {
                         s.recent.forEachIndexed { index, row ->
                             RecentItem(row, onClick = { openEditor(row.entry) })
@@ -176,11 +181,15 @@ private fun GoalCard(s: HomeUiState) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Text(
-                "현재 체중",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "현재 체중",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ThemeDecoration(Modifier.size(60.dp, 44.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     p.currentKg.kg(),
@@ -204,6 +213,7 @@ private fun GoalCard(s: HomeUiState) {
                             p.percent,
                             modifier = Modifier.align(Alignment.CenterHorizontally),
                             size = (128.dp * fontScale.coerceAtLeast(1f)).coerceAtMost(maxWidth),
+                            showThemeDecoration = true,
                         )
                         GoalStats(s)
                     }
@@ -212,7 +222,7 @@ private fun GoalCard(s: HomeUiState) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                     ) {
-                        ProgressRing(p.percent)
+                        ProgressRing(p.percent, showThemeDecoration = true)
                         GoalStats(s, Modifier.weight(1f))
                     }
                 }
