@@ -1,5 +1,6 @@
 package io.github.adgjmptw2.diet.ui.steps
 
+import io.github.adgjmptw2.diet.data.steps.StepsMath
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel

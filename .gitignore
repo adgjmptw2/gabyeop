@@ -8,3 +8,4 @@ captures/
 *.keystore
 *.jks
 app/src/main/assets/catalog.db
+__pycache__/
