@@ -2,6 +2,12 @@
 <full-backup-content>
     <include domain="database" path="." />
     <include domain="file" path="." />
+    <exclude domain="database" path="catalog.db" />
+    <exclude domain="database" path="catalog.db.tmp" />
+    <exclude domain="database" path="catalog.db-journal" />
+    <exclude domain="database" path="catalog.db-wal" />
+    <exclude domain="database" path="catalog.db-shm" />
     <exclude domain="file" path="datastore/auth.preferences_pb" />
+    <exclude domain="file" path="datastore/steps.preferences_pb" />
     <!-- AndroidKeyStore keys are system-managed and never included in app backup. -->
 </full-backup-content>

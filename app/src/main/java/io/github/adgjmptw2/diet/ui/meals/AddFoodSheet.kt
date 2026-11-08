@@ -64,6 +64,7 @@ import io.github.adgjmptw2.diet.domain.FoodEmoji
 import io.github.adgjmptw2.diet.domain.FoodUnit
 import io.github.adgjmptw2.diet.domain.MealType
 import io.github.adgjmptw2.diet.domain.Nutrition
+import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.io.File
 import kotlin.math.abs
@@ -88,6 +89,27 @@ private fun Food.servingSummary(): String {
     }
     return "$amount ${calories}kcal"
 }
+
+/** The더건강한 닭가슴살 통살 · 1개 100g · 110kcal */
+internal fun Food.resultTitle(): String = name.trim()
+
+internal fun Food.resultDetail(): String {
+    val unit = unitKind.label
+    val pack = pack?.takeIf { it.isFinite() && it > 0 }
+    if (!unitKind.isCount && pack != null) {
+        val servingDiffers = abs(serving - pack) > 0.01
+        val amount = if (pack <= 500.0 || !servingDiffers) pack else serving
+        val prefix = if (amount == pack) "1개" else "1회"
+        val kcal = Nutrition.forAmount(this, amount).kcal.kcalText()
+        return "$prefix ${amount.mealNumber()}$unit · ${kcal}kcal"
+    }
+    val macro = Nutrition.servingSummary(this)
+    val amount = if (unitKind.isCount) "${servingAmount.mealNumber()}$unit"
+    else "${serving.mealNumber()}$unit"
+    return "$amount · ${macro.kcal.kcalText()}kcal"
+}
+
+internal fun Food.portionLabel(choice: PortionChoice): String = choice.label
 
 internal fun MealEditorState.amountChipLabel(multiplier: Double): String {
     return if (unitKind.isCount) {
@@ -288,7 +310,7 @@ private fun FoodSearch(
             modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp),
         ) {
             when {
-                state.preparing -> item { SearchStatus("음식 목록 준비 중", loading = true) }
+                state.preparing -> item { SearchStatus("음식 목록 준비 중…", loading = true) }
                 state.error != null -> item {
                     Column(Modifier.padding(horizontal = 20.dp)) {
                         Text(state.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
@@ -305,14 +327,23 @@ private fun FoodSearch(
                     }
                     if (foods.isEmpty()) {
                         item {
-                            SearchStatus(
-                                when {
-                                    !showingTabs -> "검색 결과 없음"
-                                    selectedTab == FoodListTab.RECENT -> "최근 음식 없음"
-                                    selectedTab == FoodListTab.FAVORITES -> "즐겨찾기 없음"
-                                    else -> "내 음식 없음"
+                            if (!showingTabs) {
+                                Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                                    SearchStatus("검색 결과 없음")
+                                    OutlinedButton(
+                                        onClick = vm::custom, shape = MaterialTheme.shapes.small,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) { Text("'${query.trim()}' 직접 입력") }
                                 }
-                            )
+                            } else {
+                                SearchStatus(
+                                    when {
+                                        selectedTab == FoodListTab.RECENT -> "최근 음식 없음"
+                                        selectedTab == FoodListTab.FAVORITES -> "즐겨찾기 없음"
+                                        else -> "내 음식 없음"
+                                    }
+                                )
+                            }
                         }
                     }
                     items(foods, key = { it.id }) { food ->
@@ -368,8 +399,13 @@ private fun FoodResult(food: Food, onClick: () -> Unit, onLongClick: (() -> Unit
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(FoodEmoji.of(food.name, food.rep, food.category), fontSize = 28.sp, fontFamily = FontFamily.Default)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(food.servingLabel(), style = MaterialTheme.typography.bodyMedium.tabularNumbers())
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(food.resultTitle(), style = MaterialTheme.typography.bodyMedium)
+            food.brand?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(food.resultDetail(), style = MaterialTheme.typography.bodySmall.tabularNumbers(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         onEdit?.let {
             IconButton(onClick = it) {
@@ -400,6 +436,18 @@ private fun AmountFields(draft: MealEditorState, vm: MealsViewModel) {
     val enabled = !draft.saving && !draft.photoBusy
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("먹은 양", style = MaterialTheme.typography.titleSmall)
+        if (draft.portionChoices.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                draft.portionChoices.forEach { choice ->
+                    FilterChip(
+                        selected = draft.portionBasis == choice.basis,
+                        onClick = { vm.portionChoice(choice) },
+                        enabled = enabled,
+                        label = { Text(choice.label, style = MaterialTheme.typography.bodySmall.tabularNumbers()) },
+                    )
+                }
+            }
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val multipliers = if (draft.unitKind.isCount) {
                 listOf(0.5, 1.0, 2.0)

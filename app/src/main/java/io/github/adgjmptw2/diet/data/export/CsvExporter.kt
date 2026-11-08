@@ -57,7 +57,8 @@ class CsvExporter @Inject constructor(
             writer.append(csvRow("id", "시작시각(ms)", "종료시각(ms)", "목표(시간)", "수정시각(ms)"))
             fasts.forEach { writer.append(csvRow(it.id, it.startAt, it.endAt, it.targetHours, it.updatedAt)) }
         }
-        listOf(weightFile, mealFile, noteFile, fastFile).map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
+        listOf(weightFile, mealFile, noteFile, fastFile)
+            .map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
     }
 
     fun shareIntent(uris: List<Uri>): Intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {

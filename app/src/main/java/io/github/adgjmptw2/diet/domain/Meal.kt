@@ -47,6 +47,8 @@ data class Food(
     val servingFat: Double? = null,
     /** 팩/개 1개의 무게(g). 선택값이며 영양 계산에는 쓰지 않는다. */
     val servingWeightG: Double? = null,
+    /** 가공식품 한 개(포장) 총량 g/ml. 없으면 null */
+    val pack: Double? = null,
 ) {
     val unitKind: FoodUnit get() = FoodUnit.from(unit)
 
@@ -118,6 +120,14 @@ object Nutrition {
     }
 
     fun forServing(food: Food): Macro = forAmount(food, food.servingAmount)
+
+    /** 검색 결과의 1회분/1개 영양. g/ml는 serving 기준, 팩/개는 1개 기준이다. */
+    fun servingSummary(food: Food): Macro = Macro(
+        kcal = if (food.unitKind.isCount) food.servingKcal ?: food.kcal100 else food.kcal100 * food.serving / 100.0,
+        carb = if (food.unitKind.isCount) food.servingCarb else food.carb100?.times(food.serving / 100.0),
+        prot = if (food.unitKind.isCount) food.servingProt else food.prot100?.times(food.serving / 100.0),
+        fat = if (food.unitKind.isCount) food.servingFat else food.fat100?.times(food.serving / 100.0),
+    )
 
     fun total(meals: List<MealEntry>): Macro = Macro(
         kcal = meals.sumOf { it.kcal },
