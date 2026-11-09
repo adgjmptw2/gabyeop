@@ -26,6 +26,7 @@ class CsvExporter @Inject constructor(
             Triple(db.weightDao().exportRows(), db.mealDao().exportRows(), db.dayNoteDao().exportRows())
         }
         val fasts = db.fastDao().exportRows()
+        val supplements = db.supplementDao().exportLogs(Long.MIN_VALUE, Long.MAX_VALUE)
         val directory = File(context.cacheDir, "exports").apply { check(isDirectory || mkdirs()) }
         // A separate folder per export avoids overwriting files already open in another app.
         directory.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 7 * 86_400_000L }
@@ -35,6 +36,7 @@ class CsvExporter @Inject constructor(
         val mealFile = File(runDirectory, "식단.csv")
         val noteFile = File(runDirectory, "메모.csv")
         val fastFile = File(runDirectory, "단식.csv")
+        val supplementFile = File(runDirectory, "supplements.csv")
         weightFile.bufferedWriter(Charsets.UTF_8).use { writer ->
             writer.write("\uFEFF")
             writer.append(csvRow("id", "날짜", "체중(kg)", "체지방률(%)", "생성시각(ms)", "수정시각(ms)"))
@@ -57,7 +59,12 @@ class CsvExporter @Inject constructor(
             writer.append(csvRow("id", "시작시각(ms)", "종료시각(ms)", "목표(시간)", "수정시각(ms)"))
             fasts.forEach { writer.append(csvRow(it.id, it.startAt, it.endAt, it.targetHours, it.updatedAt)) }
         }
-        listOf(weightFile, mealFile, noteFile, fastFile)
+        supplementFile.bufferedWriter(Charsets.UTF_8).use { writer ->
+            writer.write("\uFEFF")
+            writer.append(csvRow("날짜", "영양제 이름"))
+            supplements.forEach { writer.append(csvRow(LocalDate.ofEpochDay(it.epochDay), it.name)) }
+        }
+        listOf(weightFile, mealFile, noteFile, fastFile, supplementFile)
             .map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
     }
 

@@ -54,6 +54,7 @@ import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.common.MacroSummary
 import io.github.adgjmptw2.diet.ui.common.MacroGoalSheet
 import io.github.adgjmptw2.diet.ui.common.comma
+import io.github.adgjmptw2.diet.ui.supplements.SupplementCard
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.io.File
 import java.time.LocalDate
@@ -121,6 +122,7 @@ fun MealsScreen(vm: MealsViewModel = hiltViewModel(), tracking: TrackingViewMode
                 MealCard(type, state.entries.filter { it.type == type }, onAdd = { vm.add(type) }, onEdit = vm::edit)
             }
         }
+        item { SupplementCard(state.date) }
     }
 
     if (pickingDate) {
