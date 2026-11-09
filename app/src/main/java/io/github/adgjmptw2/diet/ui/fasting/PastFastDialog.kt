@@ -39,10 +39,11 @@ internal fun PastFastDialog(
     var editingGoal by rememberSaveable(fast.id) { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
-    val validation = Fasting.pastError(fast.id, startAt, endAt, hours, others, now)?.message
+    // 시각을 안 바꿨으면 예전 기록끼리 겹쳐 있어도 목표만 고치거나 삭제할 수 있게 한다.
+    val timesChanged = startAt != fast.startAt || endAt != fast.endAt
+    val validation = Fasting.pastError(fast.id, startAt, endAt, hours, if (timesChanged) others else emptyList(), now)?.message
     val duration = Fasting.elapsedMillis(startAt, now, endAt)
-    val preview = Fasting.durationText(duration) + " · " +
-        if (duration >= hours * Fasting.HOUR_MS) "목표 달성" else "목표 ${hours}시간"
+    val preview = "길이 " + Fasting.durationText(duration) + if (duration >= hours * Fasting.HOUR_MS) " · 목표 달성" else ""
     val result: (String?) -> Unit = { message ->
         working = false
         saveError = message

@@ -56,7 +56,8 @@ class FastRepository @Inject constructor(private val db: DietDatabase, private v
             ?: return@withTransaction PastFastError.CHANGED
         val now = clock.millis()
         // 기존 DAO로 완료 기록과 진행 중 기록을 모두 읽어 저장 직전에 검사한다.
-        val others = (db.fastDao().exportRows() + db.fastDao().activeRows()).map { it.fast() }
+        val others = if (startAt == row.startAt && endAt == row.endAt) emptyList()
+            else (db.fastDao().exportRows() + db.fastDao().activeRows()).map { it.fast() }
         Fasting.pastError(id, startAt, endAt, targetHours, others, now)?.let { return@withTransaction it }
         db.fastDao().upsert(row.copy(startAt = startAt, endAt = endAt, targetHours = targetHours,
             updatedAt = maxOf(now, row.updatedAt + 1)))
