@@ -2,8 +2,10 @@ package io.github.adgjmptw2.diet.ui.records
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -23,9 +25,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.adgjmptw2.diet.domain.GraphDay
 import io.github.adgjmptw2.diet.domain.GraphMetric
 import io.github.adgjmptw2.diet.domain.GraphPeriod
+import io.github.adgjmptw2.diet.domain.fastingGraphPeriods
 import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.common.WaterAmountDialog
 import io.github.adgjmptw2.diet.ui.common.comma
+import io.github.adgjmptw2.diet.ui.fasting.FastingChart
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -36,7 +40,9 @@ import kotlin.math.roundToInt
 fun GraphScreen(metricRequest: Long = 0, requestedMetric: GraphMetric = GraphMetric.WATER,
     vm: GraphViewModel = hiltViewModel()) {
     var metric by rememberSaveable { mutableStateOf(if (metricRequest > 0) requestedMetric else GraphMetric.WATER) }
-    var period by rememberSaveable { mutableStateOf(GraphPeriod.WEEK) }
+    var trackingPeriod by rememberSaveable { mutableStateOf(GraphPeriod.WEEK) }
+    var fastingPeriod by rememberSaveable { mutableStateOf(GraphPeriod.WEEK) }
+    val period = if (metric == GraphMetric.FASTING) fastingPeriod else trackingPeriod
     var handled by rememberSaveable { mutableLongStateOf(0) }
     var selectedEpoch by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingEpoch by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -49,7 +55,7 @@ fun GraphScreen(metricRequest: Long = 0, requestedMetric: GraphMetric = GraphMet
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GraphMetric.entries.forEach { option ->
                     FilterChip(selected = metric == option, onClick = { metric = option; selectedEpoch = null; editingEpoch = null },
                         label = { Text(option.label) })
@@ -58,15 +64,30 @@ fun GraphScreen(metricRequest: Long = 0, requestedMetric: GraphMetric = GraphMet
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GraphPeriod.entries.forEach { option ->
-                    FilterChip(selected = period == option, onClick = { period = option; selectedEpoch = null; editingEpoch = null },
+                val periods = if (metric == GraphMetric.FASTING) fastingGraphPeriods else
+                    listOf(GraphPeriod.WEEK, GraphPeriod.MONTH, GraphPeriod.THREE_MONTHS)
+                periods.forEach { option ->
+                    FilterChip(selected = period == option, onClick = {
+                        if (metric == GraphMetric.FASTING) fastingPeriod = option else trackingPeriod = option
+                        selectedEpoch = null; editingEpoch = null
+                    },
                         label = { Text(option.label) })
                 }
             }
         }
         val s = state?.takeIf { it.metric == metric && it.period == period }
         if (s == null) item { Box(Modifier.fillMaxWidth().height(200.dp), Alignment.Center) { CircularProgressIndicator() } }
-        else {
+        else if (metric == GraphMetric.FASTING) {
+            item {
+                Card(shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("단식", style = MaterialTheme.typography.titleMedium)
+                        s.fasting?.let { FastingChart(it, s.target.roundToInt()) }
+                        s.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    }
+                }
+            }
+        } else {
             item {
                 Card(shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -124,6 +145,7 @@ private fun graphValue(metric: GraphMetric, value: Double): String = when (metri
     GraphMetric.WATER -> String.format(Locale.KOREA, "%.1f L", value / 1000)
     GraphMetric.CALORIES -> "${value.roundToInt().comma()} kcal"
     GraphMetric.STEPS -> "${value.roundToInt().comma()}걸음"
+    GraphMetric.FASTING -> String.format(Locale.KOREA, "%.1f시간", value)
 }
 
 @Composable

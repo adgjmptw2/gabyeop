@@ -39,6 +39,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.adgjmptw2.diet.R
 import io.github.adgjmptw2.diet.domain.Fast
 import io.github.adgjmptw2.diet.domain.Fasting
+import io.github.adgjmptw2.diet.domain.GraphPeriod
+import io.github.adgjmptw2.diet.domain.fastingGraph
+import io.github.adgjmptw2.diet.ui.Destination
 import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.meals.TrackingViewModel
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
@@ -56,7 +59,7 @@ private val stageImages = listOf(R.drawable.fast_stage_1, R.drawable.fast_stage_
 private val timeLabel = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
-fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltViewModel()) {
+fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Unit = {}, vm: TrackingViewModel = hiltViewModel()) {
     val state by vm.fasting.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -69,6 +72,11 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
     // 시작 전에 고른 시작 시각(null = 지금)
     var plannedStart by rememberSaveable { mutableStateOf<Long?>(null) }
     var pickingStart by rememberSaveable { mutableStateOf(false) }
+    var graphPeriod by rememberSaveable { mutableStateOf(GraphPeriod.WEEK) }
+    val graphTarget = active?.targetHours ?: state.targetHours
+    val graph = remember(state.history, graphPeriod, graphTarget, now / 60_000, vm.zone()) {
+        fastingGraph(state.history, graphPeriod, graphTarget, vm.now(), vm.zone())
+    }
     LaunchedEffect(active?.id) {
         while (true) { now = vm.now(); delay(1000 - now % 1000) }
     }
@@ -114,26 +122,6 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
                 }
                 item { Button(onClick = { start(plannedStart?.takeIf { Fasting.validStart(it, vm.now()) }); plannedStart = null },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("단식 시작") } }
-                item { Text("최근 단식", style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth()) }
-                if (state.recent.isEmpty()) item { Text("기록 없음", style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth()) }
-                items(state.recent, key = { it.id }) { fast ->
-                    val date = Instant.ofEpochMilli(fast.startAt).atZone(vm.zone()).toLocalDate()
-                    val duration = Fasting.elapsedMillis(fast.startAt, fast.endAt!!)
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = MaterialTheme.shapes.large) {
-                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(date.format(DayLabel), style = MaterialTheme.typography.bodySmall)
-                                Text(Fasting.durationText(duration), style = MaterialTheme.typography.titleSmall.tabularNumbers())
-                            }
-                            Text(if (duration >= fast.targetHours * Fasting.HOUR_MS) "목표 달성" else "목표 ${fast.targetHours}시간",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
             } else {
                 item { Button(onClick = vm::finish, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("단식 끝내기") } }
                 item {
@@ -149,6 +137,41 @@ fun FastingScreen(modifier: Modifier = Modifier, vm: TrackingViewModel = hiltVie
                 if (Fasting.elapsedMillis(active.startAt, now) > Fasting.MAX_DURATION_MS)
                     item { Text("기록은 최대 7일로 남아요", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            item {
+                Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("단식 기록", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { onNavigate(Destination.FastingGraph) }) {
+                                Text("전체 >")
+                            }
+                        }
+                        FastingPeriodSelector(graphPeriod, { graphPeriod = it })
+                        FastingChart(graph, graphTarget)
+                    }
+                }
+            }
+            item { Text("최근 단식", style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth()) }
+            if (state.recent.isEmpty()) item { Text("기록 없음", style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth()) }
+            items(state.recent.take(5), key = { it.id }) { fast ->
+                val date = Instant.ofEpochMilli(requireNotNull(fast.endAt)).atZone(vm.zone()).toLocalDate()
+                val duration = Fasting.elapsedMillis(fast.startAt, now, fast.endAt).coerceAtMost(Fasting.MAX_DURATION_MS)
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = MaterialTheme.shapes.large) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(date.format(DayLabel), style = MaterialTheme.typography.bodySmall)
+                            Text(Fasting.durationText(duration), style = MaterialTheme.typography.titleSmall.tabularNumbers())
+                        }
+                        Text(if (duration >= fast.targetHours * Fasting.HOUR_MS) "목표 달성" else "목표 ${fast.targetHours}시간",
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
             item { StageDescriptions(active, now) }
         }

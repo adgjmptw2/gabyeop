@@ -13,4 +13,8 @@ sealed interface Destination {
     data object Steps : Destination
     data class Records(val section: RecordSection = RecordSection.CALENDAR,
         val metric: GraphMetric = GraphMetric.WATER, val openToday: Boolean = false) : Destination
+
+    companion object {
+        val FastingGraph = Records(RecordSection.GRAPHS, GraphMetric.FASTING)
+    }
 }

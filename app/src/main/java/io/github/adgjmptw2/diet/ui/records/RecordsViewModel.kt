@@ -42,12 +42,13 @@ data class RecordsUiState(
     val weekCells: List<DayCell> = emptyList(), val notes: Map<LocalDate, DailyNote> = emptyMap(),
     val thisWeek: WeekSummary? = null, val weights: List<WeightEntry> = emptyList(),
     val profile: Profile? = null, val fasts: List<Fast> = emptyList(),
+    val targetKcal: Int = 0,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class RecordsViewModel @Inject constructor(
-    private val weights: WeightRepository, meals: MealRepository,
+    private val weights: WeightRepository, private val meals: MealRepository,
     private val dayNotes: DayNoteRepository, profiles: ProfileRepository,
     private val tracking: TrackingStore, fasts: FastRepository,
     private val db: DietDatabase, private val clock: Clock,
@@ -88,9 +89,16 @@ class RecordsViewModel @Inject constructor(
             RecordDay(date, dailyWeights[date]?.weightKg, dailyMeals[date].orEmpty())
         }
         val summaries = weeks(entries, mealsForDays, today, notes.filterValues { it.hasTextNotes }.keys)
+        val current = entries.firstOrNull { it.date <= today }?.weightKg ?: profile?.startWeightKg ?: 65.0
+        val targetKcal = profile?.let { it.calorieTarget ?: Calories.target(it, current, today,
+            Goal.progress(it.startWeightKg, it.targetWeightKg, current).reached).target } ?: 0
         RecordsUiState(today, summaries, days, weekCells(today, notes.values.toList()), notes,
-            summaries.firstOrNull { today in it.start..it.end }, entries, profile, fastRows)
+            summaries.firstOrNull { today in it.start..it.end }, entries, profile, fastRows, targetKcal)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** 달력에서 보고 있는 월·주 범위만 조회한다. 식단 없는 날은 키가 없다. */
+    fun calendarCalories(from: LocalDate, to: LocalDate): Flow<Map<LocalDate, Double>> =
+        meals.range(from, to).map(::dailyMealCalories)
 
     fun saveDay(date: LocalDate, weightKg: Double?, memo: String, note: String,
         bodyFatPct: Double? = null) {

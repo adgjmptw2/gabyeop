@@ -267,7 +267,7 @@ private fun MainScaffold(onEditProfile: () -> Unit, onOpenSettings: () -> Unit,
             when (tabs[page]) {
                 Tab.HOME -> HomeScreen(onEditProfile = onEditProfile, onOpenSettings = onOpenSettings, onNavigate = ::navigate)
                 Tab.MEALS -> MealsScreen(openAddRequest = addMealRequest)
-                Tab.FASTING -> FastingScreen()
+                Tab.FASTING -> FastingScreen(onNavigate = ::navigate)
                 Tab.STEPS -> StepsScreen()
                 Tab.RECORDS -> RecordsHub(isActive = pager.currentPage == page,
                     request = recordsRequest, requestedSection = section, requestedMetric = metric, openTodayRequest = dayRequest)

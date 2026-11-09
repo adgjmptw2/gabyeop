@@ -48,6 +48,7 @@ class TrackingGraphTest {
         assertEquals(leapDay.minusDays(6), GraphPeriod.WEEK.from(leapDay))
         assertEquals(LocalDate.of(2024, 1, 30), GraphPeriod.MONTH.from(leapDay))
         assertEquals(LocalDate.of(2023, 11, 30), GraphPeriod.THREE_MONTHS.from(leapDay))
+        assertEquals(LocalDate.of(2023, 3, 1), GraphPeriod.YEAR.from(leapDay))
     }
     @Test fun recordsOutsideRangeAndInvalidValuesDoNotCount() {
         val graph = trackingGraph(from, to, mapOf(from.minusDays(1) to 2000.0, from to Double.NaN, to to -1.0), 0.0)

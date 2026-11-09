@@ -3,13 +3,14 @@ package io.github.adgjmptw2.diet.domain
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-enum class GraphMetric(val label: String) { WATER("물"), CALORIES("칼로리"), STEPS("걸음") }
+enum class GraphMetric(val label: String) { WATER("물"), CALORIES("칼로리"), STEPS("걸음"), FASTING("단식") }
 enum class GraphPeriod(val label: String) {
-    WEEK("1주"), MONTH("1달"), THREE_MONTHS("3달");
+    WEEK("1주"), MONTH("1달"), THREE_MONTHS("3달"), YEAR("1년");
     fun from(to: LocalDate): LocalDate = when (this) {
         WEEK -> to.minusDays(6)
         MONTH -> to.minusMonths(1).plusDays(1)
         THREE_MONTHS -> to.minusMonths(3).plusDays(1)
+        YEAR -> to.minusMonths(11).withDayOfMonth(1)
     }
 }
 

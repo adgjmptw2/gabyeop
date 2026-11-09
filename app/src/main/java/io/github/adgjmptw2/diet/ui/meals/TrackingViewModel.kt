@@ -25,7 +25,8 @@ import javax.inject.Inject
 
 data class WaterUiState(val notes: Map<LocalDate, io.github.adgjmptw2.diet.domain.DailyNote> = emptyMap(),
     val settings: WaterSettings = WaterSettings(), val automaticTargetMl: Int = 2000, val ready: Boolean = false)
-data class FastingUiState(val active: Fast? = null, val targetHours: Int = 16, val recent: List<Fast> = emptyList())
+data class FastingUiState(val active: Fast? = null, val targetHours: Int = 16, val recent: List<Fast> = emptyList(),
+    val history: List<Fast> = emptyList())
 sealed interface TrackingEvent {
     data class WaterAdded(val date: LocalDate, val deltaMl: Int) : TrackingEvent
     data class FastFinished(val fast: Fast) : TrackingEvent
@@ -54,7 +55,7 @@ class TrackingViewModel @Inject constructor(
     val fasting = combine(fasts.entries, settings.fastingHours) { rows, hours ->
         val live = rows.filterNot { it.deleted }
         FastingUiState(live.filter { it.endAt == null }.maxWithOrNull(compareBy<Fast> { it.updatedAt }.thenBy { it.id }), hours,
-            live.filter { it.endAt != null }.sortedByDescending { it.endAt }.take(5))
+            live.filter { it.endAt != null }.sortedByDescending { it.endAt }.take(5), live)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FastingUiState())
     fun adjustWater(date: LocalDate, delta: Int) = action { notes.adjustWater(date, delta) }
     fun addWater(date: LocalDate, ml: Int) = action {
