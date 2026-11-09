@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -75,7 +75,7 @@ fun SupplementCard(
                 }
             }
             if (state.total == 0) {
-                Button(onClick = { editing = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                FilledTonalButton(onClick = { editing = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp)) {
                     Text("영양제 추가")
                 }

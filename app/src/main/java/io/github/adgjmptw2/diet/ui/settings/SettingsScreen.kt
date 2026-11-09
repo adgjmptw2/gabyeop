@@ -167,7 +167,7 @@ fun SettingsScreen(
                         TimePickerDialog(context, { _, hour, minute -> vm.setReminderTime(hour, minute) },
                             state.reminder.hour, state.reminder.minute, DateFormat.is24HourFormat(context)).show()
                     }
-                    SettingsRow("데이터 내보내기", "체중·식단·메모·단식 CSV", !state.busy, onClick = vm::export)
+                    SettingsRow("데이터 내보내기", "체중·식단·메모·단식·영양제 CSV", !state.busy, onClick = vm::export)
                     SettingsRow("이 기기 기록 지우기", enabled = !state.busy, destructive = true) {
                         dialog = AccountDialog.CLEAR_DEVICE
                     }
@@ -286,9 +286,9 @@ private fun SettingsRow(
 private val LOCAL_PRIVACY = """
     가볍게 개인정보처리방침
 
-    게스트의 체중·체지방률, 식단, 하루 메모, 물 섭취량, 단식 기록, 프로필과 사진은 이 기기에 저장돼요. Google 로그인과 서버 주소가 설정되지 않은 앱은 기록을 서버로 보내지 않아요.
+    게스트의 체중·체지방률, 식단, 하루 메모, 물 섭취량, 단식·걸음·영양제 기록, 프로필과 사진은 이 기기에 저장돼요. Google 로그인과 서버 주소가 설정되지 않은 앱은 기록을 서버로 보내지 않아요.
 
-    Google 계정을 연결하면 계정 식별자와 이메일을 로그인에 쓰고, 프로필(하루 목표 칼로리 포함)·체중·체지방률·식단·하루 메모·물 섭취량, 단식 기록을 서버에 저장해 동기화해요. 사진과 기기 안 사진 경로는 전송하지 않아요. 로그인 토큰은 Android Keystore 키로 암호화해 저장하고 백업에서 제외해요.
+    Google 계정을 연결하면 계정 식별자와 이메일을 로그인에 쓰고, 프로필(하루 목표 칼로리 포함)·체중·체지방률·식단·하루 메모·물 섭취량, 단식 기록을 서버에 저장해 동기화해요. 걸음 수, 영양제 기록, 사진과 기기 안 사진 경로는 전송하지 않아요. 로그인 토큰은 Android Keystore 키로 암호화해 저장하고 백업에서 제외해요.
 
     기기 기록은 Android 백업 설정에 따라 백업될 수 있어요. 내보낸 CSV는 선택한 공유 앱으로 전달돼요.
 

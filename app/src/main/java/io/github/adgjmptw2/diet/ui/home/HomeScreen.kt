@@ -38,14 +38,12 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
     tracking: TrackingViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val water by tracking.water.collectAsStateWithLifecycle()
-    val goals by tracking.macroGoals.collectAsStateWithLifecycle()
     val error by tracking.error.collectAsStateWithLifecycle()
     val s = state ?: return Box(Modifier.fillMaxSize())
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var editingWater by rememberSaveable { mutableStateOf(false) }
     var editingGlass by rememberSaveable { mutableStateOf(false) }
-    var editingGoals by rememberSaveable { mutableStateOf(false) }
     val targetKcal = s.profile.calorieTarget ?: s.calories.target
     LaunchedEffect(tracking) {
         tracking.waterEvents.collect { event ->
@@ -112,7 +110,6 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
                     }
                 }
             }
-            item { MacroSummary(s.meals, goals, targetKcal, { editingGoals = true }) }
             item {
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     WaterTile(water, water.notes[s.today]?.waterMl ?: 0,
@@ -131,8 +128,6 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
         { editingWater = false }, { tracking.setWater(s.today, it); editingWater = false })
     if (editingGlass) WaterGlassSizeDialog(water.settings.glassMl,
         { editingGlass = false }, { tracking.setGlassMl(it); editingGlass = false })
-    if (editingGoals) MacroGoalSheet(goals, targetKcal,
-        { editingGoals = false }, { tracking.setMacroGoals(it); editingGoals = false })
 }
 
 @Composable

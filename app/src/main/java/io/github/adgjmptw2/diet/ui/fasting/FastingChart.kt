@@ -81,9 +81,10 @@ fun FastingChart(summary: FastingGraphSummary, targetHours: Int, modifier: Modif
             val barWidth = (slotWidth - 12.dp).coerceIn(8.dp, 28.dp)
             val plotHeight = 220.dp
             val inset = 12.dp
+            val viewport = maxWidth - axisWidth
             Row(Modifier.fillMaxWidth()) {
                 Box(Modifier.weight(1f).horizontalScroll(scroll)) {
-                    Box(Modifier.width((slotWidth * summary.bars.size).coerceAtLeast(maxWidth - axisWidth))) {
+                    Box(Modifier.width((slotWidth * summary.bars.size).coerceAtLeast(viewport))) {
                         Row(Modifier.align(Alignment.TopEnd)) {
                             summary.bars.forEach { bar ->
                                 val isSelected = bar == selectedBar
