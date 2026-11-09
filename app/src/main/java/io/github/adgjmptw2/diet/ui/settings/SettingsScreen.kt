@@ -162,6 +162,15 @@ fun SettingsScreen(
                             } else vm.setReminderEnabled(enabled)
                         })
                     }
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("영양제 아침·점심·저녁 나누기", style = MaterialTheme.typography.bodyLarge)
+                            Text("끄면 하루 한 번만 체크해요", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = state.splitSupplementsByTime, enabled = !state.busy,
+                            onCheckedChange = vm::setSplitSupplementsByTime)
+                    }
                     SettingsRow("알림 시간", String.format(Locale.KOREA, "%02d:%02d", state.reminder.hour, state.reminder.minute),
                         enabled = !state.busy) {
                         TimePickerDialog(context, { _, hour, minute -> vm.setReminderTime(hour, minute) },

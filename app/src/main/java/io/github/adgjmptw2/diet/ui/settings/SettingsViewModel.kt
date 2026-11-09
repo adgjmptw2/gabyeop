@@ -13,6 +13,7 @@ import io.github.adgjmptw2.diet.data.auth.SignInResult
 import io.github.adgjmptw2.diet.data.auth.TokenStore
 import io.github.adgjmptw2.diet.data.export.CsvExporter
 import io.github.adgjmptw2.diet.data.ProfileRepository
+import io.github.adgjmptw2.diet.data.settings.SupplementSettings
 import io.github.adgjmptw2.diet.data.WeightRepository
 import io.github.adgjmptw2.diet.data.settings.TrackingStore
 import io.github.adgjmptw2.diet.domain.Calories
@@ -42,6 +43,7 @@ data class SettingsState(
     val busy: Boolean = false,
     val message: String? = null,
     val records: RecordSettingsState = RecordSettingsState(),
+    val splitSupplementsByTime: Boolean = true,
 )
 
 data class RecordSettingsState(
@@ -64,6 +66,7 @@ class SettingsViewModel @Inject constructor(
     private val profiles: ProfileRepository,
     weights: WeightRepository,
     private val tracking: TrackingStore,
+    private val supplementSettings: SupplementSettings,
     sync: SyncRepository,
     clock: Clock,
 ) : ViewModel() {
@@ -82,8 +85,12 @@ class SettingsViewModel @Inject constructor(
         RecordSettingsState(recommended, p?.calorieTarget, p?.let { Calories.minimum(it.sex) } ?: 1200,
             water, waterTargetMl(current), goals)
     }
-    val state = combine(auth.state, tokens.reminder, busy, displayMessage, recordSettings) { account, reminder, working, error, records ->
-        SettingsState(account, reminder, working, error, records)
+    private val supplementView = combine(recordSettings, supplementSettings.splitByTime) { records, split ->
+        records to split
+    }
+    val state = combine(supplementView, busy, auth.state, tokens.reminder, displayMessage) {
+            view, working, account, reminder, error ->
+        SettingsState(account, reminder, working, error, view.first, view.second)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsState())
 
     fun signIn(context: Context) = action {
@@ -124,6 +131,7 @@ class SettingsViewModel @Inject constructor(
     fun setCalorieTarget(target: Int?) = action { profiles.setCalorieTarget(target) }
     fun setWater(settings: WaterSettings) = action { tracking.setWater(settings) }
     fun setMacroGoals(goal: MacroGoal) = action { tracking.setMacroGoals(goal) }
+    fun setSplitSupplementsByTime(split: Boolean) = action { supplementSettings.setSplitByTime(split) }
 
     private fun action(block: suspend () -> Unit) {
         if (busy.value) return

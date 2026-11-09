@@ -213,16 +213,18 @@ interface DayNoteDao {
 data class SupplementEntity(
     @PrimaryKey val id: String,
     val name: String,
+    @ColumnInfo(defaultValue = "1") val slots: Int = 1,
     val sortOrder: Int,
     val createdAt: Long,
     val updatedAt: Long,
     @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
-@Entity(tableName = "supplement_log", primaryKeys = ["epochDay", "supplementId"])
+@Entity(tableName = "supplement_log", primaryKeys = ["epochDay", "supplementId", "slot"])
 data class SupplementLogEntity(
     val epochDay: Long,
     val supplementId: String,
+    @ColumnInfo(defaultValue = "1") val slot: Int = 1,
     val takenAt: Long,
 )
 
@@ -249,31 +251,43 @@ interface SupplementDao {
     @Upsert
     suspend fun upsert(row: SupplementEntity)
 
-    @Query("SELECT l.supplementId FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay = :epochDay AND s.deleted = 0")
-    fun observeDayIds(epochDay: Long): Flow<List<String>>
+    @Query("SELECT l.supplementId, l.slot FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay = :epochDay AND s.deleted = 0")
+    fun observeDayChecks(epochDay: Long): Flow<List<SupplementLogSlotRow>>
 
-    @Query("SELECT l.* FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay BETWEEN :from AND :to AND s.deleted = 0 ORDER BY l.epochDay, l.supplementId")
+    @Query("SELECT l.* FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay BETWEEN :from AND :to AND s.deleted = 0 ORDER BY l.epochDay, l.supplementId, l.slot")
     fun observeRange(from: Long, to: Long): Flow<List<SupplementLogEntity>>
 
-    @Query("SELECT * FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId LIMIT 1")
-    suspend fun logAt(epochDay: Long, supplementId: String): SupplementLogEntity?
+    @Query("SELECT * FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId AND slot = :slot LIMIT 1")
+    suspend fun logAt(epochDay: Long, supplementId: String, slot: Int): SupplementLogEntity?
+
+    @Query("SELECT * FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId")
+    suspend fun logsForDay(epochDay: Long, supplementId: String): List<SupplementLogEntity>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertLog(row: SupplementLogEntity)
 
-    @Query("DELETE FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId")
-    suspend fun deleteLog(epochDay: Long, supplementId: String)
+    @Query("DELETE FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId AND slot = :slot")
+    suspend fun deleteLog(epochDay: Long, supplementId: String, slot: Int)
 
-    @Query("SELECT l.epochDay, l.takenAt, s.name FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay BETWEEN :from AND :to ORDER BY l.epochDay, s.sortOrder, s.createdAt, s.id")
+    @Query("DELETE FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId")
+    suspend fun deleteLogsForDay(epochDay: Long, supplementId: String)
+
+    @Query("SELECT l.epochDay, l.takenAt, l.slot, s.name FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay BETWEEN :from AND :to ORDER BY l.epochDay, s.sortOrder, s.createdAt, s.id, l.slot")
     suspend fun exportLogs(from: Long, to: Long): List<SupplementExportRow>
 
     @Query("DELETE FROM supplement_log")
     suspend fun clearLogs()
 }
 
+data class SupplementLogSlotRow(
+    val supplementId: String,
+    val slot: Int,
+)
+
 data class SupplementExportRow(
     val epochDay: Long,
     val takenAt: Long,
+    val slot: Int,
     val name: String,
 )
 
@@ -281,11 +295,11 @@ data class SupplementExportRow(
     entities = [ProfileEntity::class, WeightEntryEntity::class, FoodEntity::class, MealEntryEntity::class,
         FavoriteFoodEntity::class, DayNoteEntity::class, FastEntity::class, StepDayEntity::class,
         SupplementEntity::class, SupplementLogEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4),
-        AutoMigration(from = 4, to = 5),
+        AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6),
     ],
 )
 abstract class DietDatabase : RoomDatabase() {
