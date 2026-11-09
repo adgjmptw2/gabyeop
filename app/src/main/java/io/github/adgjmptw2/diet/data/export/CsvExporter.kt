@@ -8,6 +8,7 @@ import androidx.core.content.FileProvider
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.adgjmptw2.diet.data.DietDatabase
+import io.github.adgjmptw2.diet.domain.supplementSlotLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -61,8 +62,10 @@ class CsvExporter @Inject constructor(
         }
         supplementFile.bufferedWriter(Charsets.UTF_8).use { writer ->
             writer.write("\uFEFF")
-            writer.append(csvRow("날짜", "영양제 이름"))
-            supplements.forEach { writer.append(csvRow(LocalDate.ofEpochDay(it.epochDay), it.name)) }
+            writer.append(csvRow("날짜", "때", "영양제 이름"))
+            supplements.forEach {
+                writer.append(csvRow(LocalDate.ofEpochDay(it.epochDay), supplementSlotLabel(it.slot), it.name))
+            }
         }
         listOf(weightFile, mealFile, noteFile, fastFile, supplementFile)
             .map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }

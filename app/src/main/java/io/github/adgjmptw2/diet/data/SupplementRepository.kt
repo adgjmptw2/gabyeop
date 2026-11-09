@@ -1,10 +1,15 @@
 package io.github.adgjmptw2.diet.data
 
 import androidx.room.withTransaction
+import io.github.adgjmptw2.diet.data.settings.SupplementSettings
+import io.github.adgjmptw2.diet.domain.SUPPLEMENT_SLOT_ORDER
 import io.github.adgjmptw2.diet.domain.Supplement
+import io.github.adgjmptw2.diet.domain.SupplementCheck
 import io.github.adgjmptw2.diet.domain.hasDuplicateSupplementName
+import io.github.adgjmptw2.diet.domain.normalizeSupplementSlots
 import io.github.adgjmptw2.diet.domain.parseSupplementName
 import io.github.adgjmptw2.diet.domain.supplementMove
+import io.github.adgjmptw2.diet.domain.supplementToggleAllPlan
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Clock
@@ -16,32 +21,43 @@ import javax.inject.Singleton
 @Singleton
 class SupplementRepository @Inject constructor(
     private val db: DietDatabase,
+    private val settings: SupplementSettings,
     private val clock: Clock,
 ) {
     private val dao = db.supplementDao()
+
+    /** DataStore의 나누기 설정. 앱 안에서만 쓰고 서버로 보내지 않는다. */
+    val splitByTime: Flow<Boolean> = settings.splitByTime
+
+    suspend fun setSplitByTime(split: Boolean) = settings.setSplitByTime(split)
 
     fun observeSupplements(): Flow<List<Supplement>> = dao.observeAll().map { rows ->
         rows.map { it.toDomain() }
     }
 
-    fun observeDay(date: LocalDate): Flow<Set<String>> =
-        dao.observeDayIds(date.toEpochDay()).map { it.toSet() }
-
-    /** from, to 둘 다 포함. 기록이 없는 날은 맵에 없다. */
-    fun observeRange(from: LocalDate, to: LocalDate): Flow<Map<LocalDate, Set<String>>> =
-        dao.observeRange(from.toEpochDay(), to.toEpochDay()).map { rows ->
-            rows.groupBy { LocalDate.ofEpochDay(it.epochDay) }
-                .mapValues { (_, dayRows) -> dayRows.mapTo(mutableSetOf()) { it.supplementId } }
+    fun observeDay(date: LocalDate): Flow<Set<SupplementCheck>> =
+        dao.observeDayChecks(date.toEpochDay()).map { rows ->
+            rows.mapTo(mutableSetOf()) { SupplementCheck(it.supplementId, it.slot) }
         }
 
-    suspend fun add(name: String) = db.withTransaction {
+    /** from, to 둘 다 포함. 기록이 없는 날은 맵에 없다. */
+    fun observeRange(from: LocalDate, to: LocalDate): Flow<Map<LocalDate, Set<SupplementCheck>>> =
+        dao.observeRange(from.toEpochDay(), to.toEpochDay()).map { rows ->
+            rows.groupBy { LocalDate.ofEpochDay(it.epochDay) }
+                .mapValues { (_, dayRows) ->
+                    dayRows.mapTo(mutableSetOf()) { SupplementCheck(it.supplementId, it.slot) }
+                }
+        }
+
+    suspend fun add(name: String, slots: Int) = db.withTransaction {
         val clean = requireNotNull(parseSupplementName(name)) { "이름을 확인해 주세요" }
+        val normalized = normalizeSupplementSlots(slots)
         val existing = dao.all()
         require(existing.size < MAX_SUPPLEMENTS) { "영양제는 20개까지 등록할 수 있어요" }
         require(!hasDuplicateSupplementName(clean, existing.map { it.name })) { "같은 이름의 영양제가 있어요" }
         val now = clock.millis()
         val order = (existing.maxOfOrNull { it.sortOrder } ?: -1) + 1
-        dao.insert(SupplementEntity(UUID.randomUUID().toString(), clean, order, now, now))
+        dao.insert(SupplementEntity(UUID.randomUUID().toString(), clean, normalized, order, now, now))
     }
 
     suspend fun rename(id: String, name: String) = db.withTransaction {
@@ -50,6 +66,14 @@ class SupplementRepository @Inject constructor(
         val others = dao.all().filter { it.id != id }
         require(!hasDuplicateSupplementName(clean, others.map { it.name })) { "같은 이름의 영양제가 있어요" }
         dao.upsert(row.copy(name = clean, updatedAt = maxOf(clock.millis(), row.updatedAt + 1)))
+    }
+
+    /** 먹는 때를 바꾼다. 마지막 한 때는 남긴다. */
+    suspend fun setSlots(id: String, slots: Int) = db.withTransaction {
+        val row = dao.byId(id)?.takeUnless { it.deleted } ?: return@withTransaction
+        val normalized = normalizeSupplementSlots(slots)
+        if (normalized == row.slots) return@withTransaction
+        dao.upsert(row.copy(slots = normalized, updatedAt = maxOf(clock.millis(), row.updatedAt + 1)))
     }
 
     /** 삭제 전 행을 돌려준다. 체크 기록은 지우지 않아 되돌리면 그대로 살아난다. */
@@ -84,17 +108,40 @@ class SupplementRepository @Inject constructor(
         dao.updateSortOrder(high.id, low.sortOrder, maxOf(now, high.updatedAt + 1))
     }
 
-    suspend fun toggle(date: LocalDate, id: String) = db.withTransaction {
+    /** 한 때를 먹음/해제한다. 그 영양제에 없는 때는 무시한다. */
+    suspend fun toggle(date: LocalDate, id: String, slot: Int) = db.withTransaction {
         val row = dao.byId(id)?.takeUnless { it.deleted } ?: return@withTransaction
+        if (slot !in SUPPLEMENT_SLOT_ORDER || (row.slots and slot) == 0) return@withTransaction
         val epochDay = date.toEpochDay()
-        if (dao.logAt(epochDay, id) == null) {
-            dao.insertLog(SupplementLogEntity(epochDay, id, clock.millis()))
+        if (dao.logAt(epochDay, id, slot) == null) {
+            dao.insertLog(SupplementLogEntity(epochDay, id, slot, clock.millis()))
         } else {
-            dao.deleteLog(epochDay, id)
+            dao.deleteLog(epochDay, id, slot)
         }
     }
 
-    private fun SupplementEntity.toDomain() = Supplement(id, name, sortOrder, createdAt, updatedAt, deleted)
+    /**
+     * 통합 모드의 영양제 한 개 토글.
+     * 모든 때가 체크돼 있으면 그날 그 영양제 기록을 모두 지우고, 아니면 빠진 때를 채운다.
+     */
+    suspend fun toggleAll(date: LocalDate, id: String) = db.withTransaction {
+        val row = dao.byId(id)?.takeUnless { it.deleted } ?: return@withTransaction
+        val epochDay = date.toEpochDay()
+        val checks = dao.logsForDay(epochDay, id)
+            .mapTo(mutableSetOf()) { SupplementCheck(it.supplementId, it.slot) }
+        val plan = supplementToggleAllPlan(row.toDomain(), checks)
+        if (plan.removeAll) {
+            dao.deleteLogsForDay(epochDay, id)
+        } else {
+            val now = clock.millis()
+            plan.slotsToAdd.forEach { slot ->
+                dao.insertLog(SupplementLogEntity(epochDay, id, slot, now))
+            }
+        }
+    }
+
+    private fun SupplementEntity.toDomain() =
+        Supplement(id, name, slots, sortOrder, createdAt, updatedAt, deleted)
 
     companion object {
         const val MAX_SUPPLEMENTS = 20

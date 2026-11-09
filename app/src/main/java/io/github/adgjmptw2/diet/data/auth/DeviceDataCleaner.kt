@@ -4,6 +4,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.adgjmptw2.diet.data.DietDatabase
 import io.github.adgjmptw2.diet.data.FoodRepository
+import io.github.adgjmptw2.diet.data.settings.SupplementSettings
 import io.github.adgjmptw2.diet.data.settings.TrackingStore
 import io.github.adgjmptw2.diet.data.steps.StepCounterScheduler
 import io.github.adgjmptw2.diet.data.steps.StepsStore
@@ -22,6 +23,7 @@ class DeviceDataCleaner @Inject constructor(
     private val foods: FoodRepository,
     private val tokens: TokenStore,
     private val tracking: TrackingStore,
+    private val supplementSettings: SupplementSettings,
     private val steps: StepsStore,
     private val stepCounterScheduler: StepCounterScheduler,
     private val fastGoals: FastGoalScheduler,
@@ -32,6 +34,7 @@ class DeviceDataCleaner @Inject constructor(
         fastGoals.cancel()
         context.getSharedPreferences("fast_notifications", Context.MODE_PRIVATE).edit().clear().commit()
         tracking.clear()
+        supplementSettings.clear()
         steps.clear()
         foods.resetCleanupState()
         // Photo and export folders are confined to this application's private roots.
