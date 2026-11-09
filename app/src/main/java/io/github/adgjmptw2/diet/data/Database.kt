@@ -209,13 +209,83 @@ interface DayNoteDao {
     suspend fun upsert(row: DayNoteEntity)
 }
 
+@Entity(tableName = "supplement")
+data class SupplementEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val sortOrder: Int,
+    val createdAt: Long,
+    val updatedAt: Long,
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
+)
+
+@Entity(tableName = "supplement_log", primaryKeys = ["epochDay", "supplementId"])
+data class SupplementLogEntity(
+    val epochDay: Long,
+    val supplementId: String,
+    val takenAt: Long,
+)
+
+@Dao
+interface SupplementDao {
+    @Query("SELECT * FROM supplement WHERE deleted = 0 ORDER BY sortOrder, createdAt, id")
+    fun observeAll(): Flow<List<SupplementEntity>>
+
+    @Query("SELECT * FROM supplement WHERE deleted = 0 ORDER BY sortOrder, createdAt, id")
+    suspend fun all(): List<SupplementEntity>
+
+    @Query("SELECT * FROM supplement WHERE id = :id LIMIT 1")
+    suspend fun byId(id: String): SupplementEntity?
+
+    @Query("UPDATE supplement SET sortOrder = :sortOrder, updatedAt = :now WHERE id = :id")
+    suspend fun updateSortOrder(id: String, sortOrder: Int, now: Long)
+
+    @Query("UPDATE supplement SET deleted = 1, updatedAt = :now WHERE id = :id")
+    suspend fun markDeleted(id: String, now: Long)
+
+    @Insert
+    suspend fun insert(row: SupplementEntity)
+
+    @Upsert
+    suspend fun upsert(row: SupplementEntity)
+
+    @Query("SELECT l.supplementId FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay = :epochDay AND s.deleted = 0")
+    fun observeDayIds(epochDay: Long): Flow<List<String>>
+
+    @Query("SELECT l.* FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay BETWEEN :from AND :to AND s.deleted = 0 ORDER BY l.epochDay, l.supplementId")
+    fun observeRange(from: Long, to: Long): Flow<List<SupplementLogEntity>>
+
+    @Query("SELECT * FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId LIMIT 1")
+    suspend fun logAt(epochDay: Long, supplementId: String): SupplementLogEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertLog(row: SupplementLogEntity)
+
+    @Query("DELETE FROM supplement_log WHERE epochDay = :epochDay AND supplementId = :supplementId")
+    suspend fun deleteLog(epochDay: Long, supplementId: String)
+
+    @Query("SELECT l.epochDay, l.takenAt, s.name FROM supplement_log l JOIN supplement s ON s.id = l.supplementId WHERE l.epochDay BETWEEN :from AND :to ORDER BY l.epochDay, s.sortOrder, s.createdAt, s.id")
+    suspend fun exportLogs(from: Long, to: Long): List<SupplementExportRow>
+
+    @Query("DELETE FROM supplement_log")
+    suspend fun clearLogs()
+}
+
+data class SupplementExportRow(
+    val epochDay: Long,
+    val takenAt: Long,
+    val name: String,
+)
+
 @Database(
     entities = [ProfileEntity::class, WeightEntryEntity::class, FoodEntity::class, MealEntryEntity::class,
-        FavoriteFoodEntity::class, DayNoteEntity::class, FastEntity::class, StepDayEntity::class],
-    version = 4,
+        FavoriteFoodEntity::class, DayNoteEntity::class, FastEntity::class, StepDayEntity::class,
+        SupplementEntity::class, SupplementLogEntity::class],
+    version = 5,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4),
+        AutoMigration(from = 4, to = 5),
     ],
 )
 abstract class DietDatabase : RoomDatabase() {
@@ -227,4 +297,5 @@ abstract class DietDatabase : RoomDatabase() {
     abstract fun dayNoteDao(): DayNoteDao
     abstract fun fastDao(): FastDao
     abstract fun stepDayDao(): StepDayDao
+    abstract fun supplementDao(): SupplementDao
 }

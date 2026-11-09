@@ -23,6 +23,7 @@ import io.github.adgjmptw2.diet.ui.meals.TrackingViewModel
 import io.github.adgjmptw2.diet.ui.meals.WaterUiState
 import io.github.adgjmptw2.diet.ui.meals.liters
 import io.github.adgjmptw2.diet.ui.steps.StepsTile
+import io.github.adgjmptw2.diet.ui.supplements.SupplementCard
 import io.github.adgjmptw2.diet.ui.theme.ThemeDecoration
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import kotlinx.coroutines.delay
@@ -122,6 +123,7 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
                     StepsTile({ onNavigate(Destination.Steps) }, Modifier.weight(1f).fillMaxHeight())
                 }
             }
+            item { SupplementCard(s.today) }
             item { FastingTile(tracking, { onNavigate(Destination.Fasting) }) }
         }
     }

@@ -23,6 +23,7 @@ import io.github.adgjmptw2.diet.ui.common.WaterControls
 import io.github.adgjmptw2.diet.ui.common.comma
 import io.github.adgjmptw2.diet.ui.common.kg
 import io.github.adgjmptw2.diet.ui.meals.liters
+import io.github.adgjmptw2.diet.ui.supplements.SupplementCard
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import kotlin.math.roundToInt
 
@@ -146,6 +147,7 @@ private fun DayDetailContent(state: DayDetailState, vm: RecordsViewModel, focusW
             Text("단식 ${Fasting.durationText(Fasting.elapsedMillis(fast.startAt, fast.endAt!!))}",
                 style = MaterialTheme.typography.bodyMedium)
         }
+        item { SupplementCard(state.date) }
         item { Text("그날 식단", style = MaterialTheme.typography.titleMedium) }
         if (state.meals.isEmpty()) item {
             Text("식단 기록 없음", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
