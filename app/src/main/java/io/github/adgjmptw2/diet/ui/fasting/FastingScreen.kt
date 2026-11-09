@@ -44,6 +44,7 @@ import io.github.adgjmptw2.diet.domain.fastingGraph
 import io.github.adgjmptw2.diet.ui.Destination
 import io.github.adgjmptw2.diet.ui.common.DayLabel
 import io.github.adgjmptw2.diet.ui.meals.TrackingViewModel
+import io.github.adgjmptw2.diet.ui.meals.TrackingEvent
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -69,6 +70,8 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
     var now by remember { mutableLongStateOf(vm.now()) }
     var editingStart by rememberSaveable { mutableStateOf(false) }
     var editingGoal by rememberSaveable { mutableStateOf(false) }
+    var editingPastId by rememberSaveable { mutableStateOf<String?>(null) }
+    var recentLimit by rememberSaveable { mutableIntStateOf(5) }
     // 시작 전에 고른 시작 시각(null = 지금)
     var plannedStart by rememberSaveable { mutableStateOf<Long?>(null) }
     var pickingStart by rememberSaveable { mutableStateOf(false) }
@@ -84,8 +87,16 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
         vm.fastingEvents.collect { event ->
             scope.launch {
                 snackbar.currentSnackbarData?.dismiss()
-                if (snackbar.showSnackbar("단식을 끝냈어요", "되돌리기", withDismissAction = true, duration = androidx.compose.material3.SnackbarDuration.Long) == SnackbarResult.ActionPerformed)
-                    vm.undoFinish(event.fast)
+                val message = when (event) {
+                    is TrackingEvent.FastFinished -> "단식을 끝냈어요"
+                    is TrackingEvent.FastDeleted -> "단식 기록을 지웠어요"
+                }
+                if (snackbar.showSnackbar(message, "되돌리기", withDismissAction = true, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) {
+                    when (event) {
+                        is TrackingEvent.FastFinished -> vm.undoFinish(event.fast)
+                        is TrackingEvent.FastDeleted -> vm.restorePast(event.fast)
+                    }
+                }
             }
         }
     }
@@ -157,10 +168,12 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
             item { Text("최근 단식", style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth()) }
             if (state.recent.isEmpty()) item { Text("기록 없음", style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth()) }
-            items(state.recent.take(5), key = { it.id }) { fast ->
+            items(state.recent.take(recentLimit), key = { it.id }) { fast ->
                 val date = Instant.ofEpochMilli(requireNotNull(fast.endAt)).atZone(vm.zone()).toLocalDate()
                 val duration = Fasting.elapsedMillis(fast.startAt, now, fast.endAt).coerceAtMost(Fasting.MAX_DURATION_MS)
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                Card(onClick = { editingPastId = fast.id },
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "단식 기록 수정" },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = MaterialTheme.shapes.large) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
@@ -173,6 +186,9 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
                     }
                 }
             }
+            if (recentLimit < state.recent.size) item {
+                TextButton(onClick = { recentLimit = (recentLimit + 5).coerceAtMost(state.recent.size) }) { Text("더 보기") }
+            }
             item { StageDescriptions(active, now) }
         }
     }
@@ -182,6 +198,12 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
         { vm.changeStartAt(it); editingStart = false })
     if (pickingStart && active == null) StartTimeDialog(plannedStart ?: vm.now(), vm.now(), vm.zone(), { pickingStart = false },
         { plannedStart = it; pickingStart = false })
+    state.recent.firstOrNull { it.id == editingPastId }?.let { fast ->
+        PastFastDialog(fast = fast, others = state.history, now = now, zone = vm.zone(),
+            onDismiss = { editingPastId = null },
+            onSave = { startAt, endAt, hours, result -> vm.updatePast(fast.id, startAt, endAt, hours, result) },
+            onDelete = { result -> vm.deletePast(fast.id, result) })
+    }
 }
 
 @Composable
@@ -269,7 +291,7 @@ private fun GoalChips(hours: Int, onSelect: (Int) -> Unit, onCustom: (() -> Unit
 }
 
 @Composable
-private fun FastingGoalDialog(hours: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+internal fun FastingGoalDialog(hours: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
     var text by rememberSaveable { mutableStateOf(hours.toString()) }
     val parsed = text.toIntOrNull()
     val valid = parsed != null && parsed in Fasting.TARGET_HOURS

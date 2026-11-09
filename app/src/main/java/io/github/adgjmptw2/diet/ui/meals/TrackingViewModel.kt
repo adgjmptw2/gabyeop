@@ -29,7 +29,9 @@ data class FastingUiState(val active: Fast? = null, val targetHours: Int = 16, v
     val history: List<Fast> = emptyList())
 sealed interface TrackingEvent {
     data class WaterAdded(val date: LocalDate, val deltaMl: Int) : TrackingEvent
-    data class FastFinished(val fast: Fast) : TrackingEvent
+    sealed interface FastEvent : TrackingEvent { val fast: Fast }
+    data class FastFinished(override val fast: Fast) : FastEvent
+    data class FastDeleted(override val fast: Fast) : FastEvent
 }
 
 @HiltViewModel
@@ -45,7 +47,7 @@ class TrackingViewModel @Inject constructor(
     val error = MutableStateFlow<String?>(null)
     private val waterChannel = Channel<TrackingEvent.WaterAdded>(Channel.BUFFERED)
     val waterEvents = waterChannel.receiveAsFlow()
-    private val fastChannel = Channel<TrackingEvent.FastFinished>(Channel.BUFFERED)
+    private val fastChannel = Channel<TrackingEvent.FastEvent>(Channel.BUFFERED)
     val fastingEvents = fastChannel.receiveAsFlow()
     val macroGoals = settings.macroGoals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), io.github.adgjmptw2.diet.domain.MacroGoal())
     val water = combine(notes.notes(), settings.water, profiles.profile, weights.entries, todayDates(clock)) { days, options, profile, entries, today ->
@@ -55,7 +57,7 @@ class TrackingViewModel @Inject constructor(
     val fasting = combine(fasts.entries, settings.fastingHours) { rows, hours ->
         val live = rows.filterNot { it.deleted }
         FastingUiState(live.filter { it.endAt == null }.maxWithOrNull(compareBy<Fast> { it.updatedAt }.thenBy { it.id }), hours,
-            live.filter { it.endAt != null }.sortedByDescending { it.endAt }.take(5), live)
+            live.filter { it.endAt != null }.sortedByDescending { it.endAt }, live)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FastingUiState())
     fun adjustWater(date: LocalDate, delta: Int) = action { notes.adjustWater(date, delta) }
     fun addWater(date: LocalDate, ml: Int) = action {
@@ -76,6 +78,20 @@ class TrackingViewModel @Inject constructor(
     }
     fun finish() = action { fasts.finish()?.let { fastChannel.send(TrackingEvent.FastFinished(it)) } }
     fun undoFinish(fast: Fast) = action { if (!fasts.undoFinish(fast)) error.value = "단식 기록이 바뀌어 되돌릴 수 없어요" }
+    fun updatePast(id: String, startAt: Long, endAt: Long, targetHours: Int, onResult: (String?) -> Unit) =
+        action(onFailure = { onResult(it) }) {
+            onResult(fasts.updatePast(id, startAt, endAt, targetHours)?.message)
+        }
+    fun deletePast(id: String, onResult: (String?) -> Unit) = action(onFailure = { onResult(it) }) {
+        val deleted = fasts.delete(id)
+        if (deleted == null) onResult("단식 기록이 바뀌었어요") else {
+            onResult(null)
+            fastChannel.send(TrackingEvent.FastDeleted(deleted))
+        }
+    }
+    fun restorePast(fast: Fast) = action {
+        if (!fasts.restore(fast)) error.value = "단식 기록이 바뀌어 되돌릴 수 없어요"
+    }
     fun now(): Long = clock.millis()
     fun zone() = clock.zone
     fun notificationDenied() { error.value = "알림 권한이 꺼져 있어요" }
@@ -90,12 +106,12 @@ class TrackingViewModel @Inject constructor(
         }
         fasts.changeStart(selected)
     }
-    private fun action(block: suspend () -> Unit) {
+    private fun action(onFailure: (String) -> Unit = { error.value = it }, block: suspend () -> Unit) {
         viewModelScope.launch {
             writes.withLock {
                 try { error.value = null; block() }
                 catch (e: CancellationException) { throw e }
-                catch (_: Exception) { error.value = "저장하지 못했어요" }
+                catch (_: Exception) { onFailure("저장하지 못했어요") }
             }
         }
     }

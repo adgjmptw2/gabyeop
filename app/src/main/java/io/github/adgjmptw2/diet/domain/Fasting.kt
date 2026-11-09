@@ -6,6 +6,15 @@ data class Fast(
 )
 data class FastStage(val fromHours: Int, val name: String, val description: String)
 
+enum class PastFastError(val message: String) {
+    ORDER("끝 시각이 시작보다 늦어야 해요"),
+    FUTURE("끝 시각은 지금보다 늦을 수 없어요"),
+    DURATION("단식은 7일까지 기록할 수 있어요"),
+    OVERLAP("다른 단식과 시간이 겹쳐요"),
+    TARGET("목표는 1~72시간으로 골라 주세요"),
+    CHANGED("단식 기록이 바뀌었어요"),
+}
+
 object Fasting {
     val TARGET_HOURS = 1..72
     const val HOUR_MS = 3_600_000L
@@ -22,6 +31,31 @@ object Fasting {
         ((endAt ?: now) - startAt).coerceAtLeast(0)
     /** 시작 시각은 지금 이전, 7일 이내만 */
     fun validStart(startAt: Long, now: Long): Boolean = startAt <= now && now - startAt <= MAX_DURATION_MS
+    /** 구간은 [시작, 끝). 끝과 다음 시작이 같은 기록은 겹치지 않는다. */
+    fun pastError(id: String, startAt: Long, endAt: Long, targetHours: Int,
+        others: List<Fast>, now: Long): PastFastError? = when {
+        endAt <= startAt -> PastFastError.ORDER
+        endAt > now -> PastFastError.FUTURE
+        // 뺄셈 오버플로도 7일을 넘는 구간으로 처리한다.
+        endAt - startAt < 0 || endAt - startAt > MAX_DURATION_MS -> PastFastError.DURATION
+        others.any { other ->
+            val otherEnd = other.endAt
+            !other.deleted && other.id != id && (otherEnd == null || otherEnd > other.startAt) &&
+                (otherEnd == null || startAt < otherEnd) && endAt > other.startAt
+        } -> PastFastError.OVERLAP
+        targetHours !in TARGET_HOURS -> PastFastError.TARGET
+        else -> null
+    }
+
+    fun deletePast(fast: Fast, now: Long): Fast? =
+        fast.takeIf { it.endAt != null && !it.deleted }
+            ?.copy(deleted = true, updatedAt = maxOf(now, fast.updatedAt + 1))
+
+    /** 삭제 직후의 스냅샷과 같은 행에만 되돌리기를 적용한다. */
+    fun restorePast(current: Fast, deleted: Fast, now: Long): Fast? =
+        current.takeIf { it == deleted && it.deleted && it.endAt != null }
+            ?.copy(deleted = false, updatedAt = maxOf(now, current.updatedAt + 1))
+
     fun stageIndex(elapsedMillis: Long): Int =
         stages.indexOfLast { elapsedMillis.coerceAtLeast(0) >= it.fromHours * HOUR_MS }.coerceAtLeast(0)
     fun progress(elapsedMillis: Long, targetHours: Int): Float =
