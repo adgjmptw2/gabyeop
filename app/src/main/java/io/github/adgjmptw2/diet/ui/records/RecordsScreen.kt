@@ -242,7 +242,7 @@ private fun CalendarCalories(kcal: Double?, targetKcal: Int) {
 
 @Composable
 private fun CalendarCaloriesLegend() {
-    Text("위 숫자는 체중(kg), 아래는 먹은 kcal", style = MaterialTheme.typography.labelSmall,
+    Text("작은 숫자: 체중(kg) · 먹은 kcal", style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

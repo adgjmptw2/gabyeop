@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -163,7 +164,7 @@ fun SettingsScreen(
                         })
                     }
                     SettingsRow("기록 알림 시간", String.format(Locale.KOREA, "%02d:%02d", state.reminder.hour, state.reminder.minute),
-                        enabled = !state.busy && state.reminder.enabled) {
+                        enabled = !state.busy, available = state.reminder.enabled) {
                         TimePickerDialog(context, { _, hour, minute -> vm.setReminderTime(hour, minute) },
                             state.reminder.hour, state.reminder.minute, DateFormat.is24HourFormat(context)).show()
                     }
@@ -279,9 +280,10 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun SettingsRow(
     title: String, description: String? = null, enabled: Boolean = true,
-    destructive: Boolean = false, onClick: (() -> Unit)? = null,
+    destructive: Boolean = false, available: Boolean = true, onClick: (() -> Unit)? = null,
 ) {
-    Column(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick) else Modifier)
+    Column(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(enabled = enabled && available, onClick = onClick) else Modifier)
+        .alpha(if (available) 1f else 0.38f)
         .heightIn(min = 56.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge,
             color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
