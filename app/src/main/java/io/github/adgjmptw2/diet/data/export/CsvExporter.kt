@@ -37,7 +37,7 @@ class CsvExporter @Inject constructor(
         val mealFile = File(runDirectory, "식단.csv")
         val noteFile = File(runDirectory, "메모.csv")
         val fastFile = File(runDirectory, "단식.csv")
-        val supplementFile = File(runDirectory, "supplements.csv")
+        val supplementFile = File(runDirectory, "영양제.csv")
         weightFile.bufferedWriter(Charsets.UTF_8).use { writer ->
             writer.write("\uFEFF")
             writer.append(csvRow("id", "날짜", "체중(kg)", "체지방률(%)", "생성시각(ms)", "수정시각(ms)"))

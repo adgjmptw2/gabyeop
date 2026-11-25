@@ -81,7 +81,8 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
         fastingGraph(state.history, graphPeriod, graphTarget, vm.now(), vm.zone())
     }
     LaunchedEffect(active?.id) {
-        while (true) { now = vm.now(); delay(1000 - now % 1000) }
+        // 진행 중 단식이 없으면 그래프의 오늘만 맞추면 되니 1분마다
+        while (true) { now = vm.now(); delay(if (active == null) 60_000 - now % 60_000 else 1000 - now % 1000) }
     }
     LaunchedEffect(vm) {
         vm.fastingEvents.collect { event ->
@@ -100,11 +101,16 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
             }
         }
     }
-    LaunchedEffect(error) { error?.let { snackbar.showSnackbar(it) } }
+    LaunchedEffect(error) {
+        val message = error ?: return@LaunchedEffect
+        scope.launch { snackbar.showSnackbar(message) }
+        vm.clearError()
+    }
     Scaffold(modifier = modifier, contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp),
+        LazyColumn(Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 72.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             item { Text("단식", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth()) }
             item { FastingRing(active, active?.targetHours ?: state.targetHours, now) }

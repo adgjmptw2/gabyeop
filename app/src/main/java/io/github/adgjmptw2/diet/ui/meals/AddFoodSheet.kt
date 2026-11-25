@@ -75,11 +75,6 @@ private fun FoodListTab.label(): String = when (this) {
     FoodListTab.CUSTOM -> "내 음식"
 }
 
-/** 닭가슴살 · 한끼통살 갈릭맛 · 1팩 120kcal */
-private fun Food.servingLabel(): String = listOfNotNull(
-    name.trim().ifEmpty { null }, brand?.trim()?.ifEmpty { null }, servingSummary(),
-).joinToString(" · ")
-
 private fun Food.servingSummary(): String {
     val calories = Nutrition.forServing(this).kcal.kcalText()
     val amount = if (unitKind.isCount) {
@@ -108,8 +103,6 @@ internal fun Food.resultDetail(): String {
     else "${serving.mealNumber()}$unit"
     return "$amount · ${macro.kcal.kcalText()}kcal"
 }
-
-internal fun Food.portionLabel(choice: PortionChoice): String = choice.label
 
 internal fun MealEditorState.amountChipLabel(multiplier: Double): String {
     return if (unitKind.isCount) {

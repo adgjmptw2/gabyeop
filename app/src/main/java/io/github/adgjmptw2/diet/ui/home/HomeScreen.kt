@@ -54,7 +54,11 @@ fun HomeScreen(onEditProfile: () -> Unit, onNavigate: (Destination) -> Unit,
             }
         }
     }
-    LaunchedEffect(error) { error?.let { snackbar.showSnackbar(it) } }
+    LaunchedEffect(error) {
+        val message = error ?: return@LaunchedEffect
+        scope.launch { snackbar.showSnackbar(message) }
+        tracking.clearError()
+    }
     Scaffold(containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding),

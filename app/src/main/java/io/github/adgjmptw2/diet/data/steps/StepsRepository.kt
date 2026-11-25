@@ -36,6 +36,9 @@ class StepsRepository @Inject constructor(
     private val _busy = MutableStateFlow(false)
     val busy = _busy.asStateFlow()
 
+    /** 오늘 30일치를 한 번 읽었으면 그 뒤로는 어제·오늘만 읽는다(화면을 열 때마다 30일을 다시 읽지 않게). */
+    @Volatile private var fullPullDay: LocalDate? = null
+
     override fun daily(from: LocalDate, to: LocalDate): Flow<Map<LocalDate, Int>> =
         stepDays.observe(from, to)
 
@@ -61,7 +64,8 @@ class StepsRepository @Inject constructor(
         store.setDenied(false)
         store.setMode(StepMode.HEALTH_CONNECT)
         val today = LocalDate.now(clock)
-        pull(client, today.minusDays(HealthConnectSteps.LOOKBACK_DAYS), today)
+        fullPullDay = null
+        pull(client, today)
         scheduler.cancel()
         _source.value = StepsAvailability.HEALTH_CONNECT
         true
@@ -86,7 +90,7 @@ class StepsRepository @Inject constructor(
             if (client != null && health.available() && health.hasPermission(client)) {
                 store.setMode(StepMode.HEALTH_CONNECT)
                 store.setDenied(false)
-                pull(client, today.minusDays(HealthConnectSteps.LOOKBACK_DAYS), today)
+                pull(client, today)
                 scheduler.cancel()
                 _source.value = StepsAvailability.HEALTH_CONNECT
             } else if (sensor.available && hasSensorPermission()) {
@@ -132,13 +136,16 @@ class StepsRepository @Inject constructor(
 
     fun sourceLabel(): String = when (_source.value) {
         StepsAvailability.HEALTH_CONNECT -> "Health Connect에서 가져와요"
-        StepsAvailability.SENSOR -> "폰 걸음 센서로 세요"
+        StepsAvailability.SENSOR -> "기기 걸음 센서로 세요"
         StepsAvailability.NONE -> "걸음 수를 보려면 권한이 필요해요"
     }
 
-    private suspend fun pull(client: androidx.health.connect.client.HealthConnectClient, from: LocalDate, to: LocalDate) {
-        val values = health.read(client, from, to)
+    private suspend fun pull(client: androidx.health.connect.client.HealthConnectClient, today: LocalDate) {
+        val full = fullPullDay != today
+        val from = today.minusDays(if (full) HealthConnectSteps.LOOKBACK_DAYS else 1)
+        val values = health.daily(client, from, today) ?: return
         values.forEach { (day, steps) -> stepDays.merge(day, steps, SOURCE_HEALTH) }
+        if (full) fullPullDay = today
     }
 
     companion object {

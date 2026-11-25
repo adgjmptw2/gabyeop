@@ -104,7 +104,7 @@ fun toggleSupplementSlot(slots: Int, slot: Int): Int {
 
 /**
  * 나누기 켬: 때별 체크 수 / 전체 때별 수.
- * 나누기 끔: 모든 때를 체크한 영양제 수 / 영양제 수.
+ * 나누기 끔: 한 때라도 체크한 영양제 수 / 영양제 수.
  */
 fun supplementProgress(
     supplements: Collection<Supplement>,
@@ -122,14 +122,15 @@ fun supplementProgress(
         }
         return SupplementProgress(done, total)
     }
-    val done = supplements.count { supplement ->
-        val flags = supplementSlotFlags(supplement.slots)
-        flags.isNotEmpty() && flags.all { SupplementCheck(supplement.id, it) in checks }
-    }
+    val done = supplements.count { supplementTakenAny(it, checks) }
     return SupplementProgress(done, supplements.size)
 }
 
-/** 통합 모드 한 번 탭: 모두 체크돼 있으면 그날 로그를 모두 지우고, 아니면 빠진 때를 채운다. */
+/** 통합 모드에서 먹은 것으로 보는 기준: 그날 한 때라도 체크. 나누기 켬에서 아침만 체크한 날도 먹은 날로 남는다. */
+fun supplementTakenAny(supplement: Supplement, checks: Set<SupplementCheck>): Boolean =
+    supplementSlotFlags(supplement.slots).any { SupplementCheck(supplement.id, it) in checks }
+
+/** 통합 모드 한 번 탭: 한 때라도 체크돼 있으면 그날 로그를 모두 지우고, 아니면 모든 때를 채운다. */
 fun supplementToggleAllPlan(
     supplement: Supplement,
     checks: Set<SupplementCheck>,
@@ -137,8 +138,8 @@ fun supplementToggleAllPlan(
     val flags = supplementSlotFlags(supplement.slots)
     if (flags.isEmpty()) return SupplementToggleAllPlan(emptySet(), false)
     val checked = flags.filterTo(mutableSetOf()) { SupplementCheck(supplement.id, it) in checks }
-    if (checked.size == flags.size) return SupplementToggleAllPlan(emptySet(), true)
-    return SupplementToggleAllPlan(flags - checked, false)
+    if (checked.isNotEmpty()) return SupplementToggleAllPlan(emptySet(), true)
+    return SupplementToggleAllPlan(flags, false)
 }
 
 /** 기록이 없는 날은 맵에 넣지 않는다. 같은 날 같은 때가 겹쳐도 하나로 센다. */
