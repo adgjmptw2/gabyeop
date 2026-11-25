@@ -70,4 +70,26 @@ class StepsMathTest {
         assertEquals(mapOf(day to 7_000, next to 900), StepsMath.busiestOrigin(entries))
         assertEquals(emptyMap<LocalDate, Int>(), StepsMath.busiestOrigin(emptyList()))
     }
+
+    @Test
+    fun `reads thirty days again until older records exist`() {
+        val today = LocalDate.of(2026, 11, 25)
+        val oldest = today.minusDays(30)
+
+        assertEquals(oldest, StepsMath.pullFrom(today, oldest, null, false))
+        // 오늘 이미 읽었어도 비어 있었으면(삼성 헬스를 나중에 연결) 다시 30일
+        assertEquals(oldest, StepsMath.pullFrom(today, oldest, today, false))
+        assertEquals(today.minusDays(1), StepsMath.pullFrom(today, oldest, today, true))
+        // 날이 바뀌면 다시 30일
+        assertEquals(oldest, StepsMath.pullFrom(today, oldest, today.minusDays(1), true))
+    }
+
+    @Test
+    fun `stale sensor baseline does not pour old steps into today`() {
+        val today = LocalDate.of(2026, 11, 25)
+
+        assertEquals(true, StepsMath.countsForToday(today, today))
+        assertEquals(true, StepsMath.countsForToday(today.minusDays(1), today))
+        assertEquals(false, StepsMath.countsForToday(today.minusDays(2), today))
+    }
 }

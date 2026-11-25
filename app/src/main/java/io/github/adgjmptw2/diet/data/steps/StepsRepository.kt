@@ -36,7 +36,7 @@ class StepsRepository @Inject constructor(
     private val _busy = MutableStateFlow(false)
     val busy = _busy.asStateFlow()
 
-    /** 오늘 30일치를 한 번 읽었으면 그 뒤로는 어제·오늘만 읽는다(화면을 열 때마다 30일을 다시 읽지 않게). */
+    /** 오늘 30일치를 이미 읽은 날짜. 지난 기록이 실제로 들어와 있을 때만 이 뒤로 어제·오늘만 읽는다. */
     @Volatile private var fullPullDay: LocalDate? = null
 
     override fun daily(from: LocalDate, to: LocalDate): Flow<Map<LocalDate, Int>> =
@@ -141,11 +141,12 @@ class StepsRepository @Inject constructor(
     }
 
     private suspend fun pull(client: androidx.health.connect.client.HealthConnectClient, today: LocalDate) {
-        val full = fullPullDay != today
-        val from = today.minusDays(if (full) HealthConnectSteps.LOOKBACK_DAYS else 1)
+        val oldest = today.minusDays(HealthConnectSteps.LOOKBACK_DAYS)
+        val stored = stepDays.range(oldest, today.minusDays(2)).any { it.source == SOURCE_HEALTH }
+        val from = StepsMath.pullFrom(today, oldest, fullPullDay, stored)
         val values = health.daily(client, from, today) ?: return
         values.forEach { (day, steps) -> stepDays.merge(day, steps, SOURCE_HEALTH) }
-        if (full) fullPullDay = today
+        if (from == oldest) fullPullDay = today
     }
 
     companion object {

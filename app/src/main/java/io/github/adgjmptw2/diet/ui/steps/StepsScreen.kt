@@ -319,7 +319,7 @@ private fun SourceLine(state: StepsUiState, onSettings: () -> Unit) {
         Text(
             when (state.source) {
                 // 권한은 있는데 기록이 하나도 없으면 걸음 앱이 Health Connect에 쓰지 않는 것(갤럭시는 대개 삼성 헬스 연결이 꺼짐)
-                StepsAvailability.HEALTH_CONNECT -> if (state.days.any { (it.steps ?: 0) > 0 }) "Health Connect에서 가져와요"
+                StepsAvailability.HEALTH_CONNECT -> if (state.busy || state.days.any { (it.steps ?: 0) > 0 }) "Health Connect에서 가져와요"
                     else if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) "Health Connect에 걸음 기록이 없어요. 삼성 헬스에서 Health Connect 연결을 켜 주세요"
                     else "Health Connect에 걸음 기록이 없어요. 걸음 앱에서 Health Connect 연결을 켜 주세요"
                 StepsAvailability.SENSOR -> "기기 걸음 센서로 세요"

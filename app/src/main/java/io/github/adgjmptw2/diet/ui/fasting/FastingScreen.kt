@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.adgjmptw2.diet.R
 import io.github.adgjmptw2.diet.domain.Fast
@@ -80,9 +83,12 @@ fun FastingScreen(modifier: Modifier = Modifier, onNavigate: (Destination) -> Un
     val graph = remember(state.history, graphPeriod, graphTarget, now / 60_000, vm.zone()) {
         fastingGraph(state.history, graphPeriod, graphTarget, vm.now(), vm.zone())
     }
-    LaunchedEffect(active?.id) {
-        // 진행 중 단식이 없으면 그래프의 오늘만 맞추면 되니 1분마다
-        while (true) { now = vm.now(); delay(if (active == null) 60_000 - now % 60_000 else 1000 - now % 1000) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(active?.id, lifecycleOwner) {
+        // 화면이 보일 때만 돈다. 다시 열면 바로 지금 시각부터. 진행 중 단식이 없으면 1분마다로 충분하다.
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) { now = vm.now(); delay(if (active == null) 60_000 - now % 60_000 else 1000 - now % 1000) }
+        }
     }
     LaunchedEffect(vm) {
         vm.fastingEvents.collect { event ->

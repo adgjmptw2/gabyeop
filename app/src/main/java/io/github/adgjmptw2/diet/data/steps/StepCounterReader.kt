@@ -69,6 +69,10 @@ class StepCounterReader @Inject constructor(@ApplicationContext private val cont
             if (baselineDay != today) store.setSensorBaseline(SensorBaseline(total, today.toEpochDay()))
             return
         }
+        if (!StepsMath.countsForToday(baselineDay, today)) {
+            store.setSensorBaseline(SensorBaseline(total, today.toEpochDay()))
+            return
+        }
         // 날짜가 바뀐 뒤 처음 읽은 차이는 오늘로 센다(밤새 작업이 미뤄지면 아침 걸음이 어제로 가는 것을 막음)
         val target = today
         val existing = repository.range(target, target).firstOrNull()

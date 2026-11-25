@@ -45,4 +45,17 @@ object StepsMath {
                 day.groupBy { it.origin }.values.maxOf { rows -> rows.sumOf { it.steps } }
                     .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             }
+
+    /**
+     * Health Connect를 어느 날부터 읽을지. 오늘 이미 30일을 읽었고 지난 기록도 저장돼 있으면 어제부터만 읽는다.
+     * 지난 기록이 없으면(삼성 헬스를 나중에 연결했거나 기기 기록을 지운 경우) 같은 날에도 30일을 다시 읽는다.
+     */
+    fun pullFrom(today: LocalDate, oldest: LocalDate, fullPullDay: LocalDate?, hasOlderRecords: Boolean): LocalDate =
+        if (fullPullDay == today && hasOlderRecords) today.minusDays(1) else oldest
+
+    /**
+     * 센서 차이를 오늘에 더해도 되는지. 마지막으로 잰 날이 어제보다 앞이면 여러 날 걸음이 섞여 있어 버린다
+     * (Health Connect를 쓰다가 센서로 돌아온 날 몇 주 치가 하루에 몰리는 것을 막음).
+     */
+    fun countsForToday(baselineDay: LocalDate, today: LocalDate): Boolean = !baselineDay.isBefore(today.minusDays(1))
 }
