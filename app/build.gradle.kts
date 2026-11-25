@@ -32,8 +32,9 @@ android {
         applicationId = "io.github.adgjmptw2.diet"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.4.0"
+        versionCode = 7
+        versionName = "1.4.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE_URL", buildConfigString(dietConfig("diet.apiBaseUrl")))
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", buildConfigString(dietConfig("diet.googleWebClientId")))
     }
@@ -50,6 +51,10 @@ android {
     }
 
     buildTypes {
+        // 디버그는 다른 패키지로 깔아 릴리스 앱과 그 기록을 건드리지 않는다
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -96,6 +101,8 @@ dependencies {
     ksp(libs.room.compiler)
 
     testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play)

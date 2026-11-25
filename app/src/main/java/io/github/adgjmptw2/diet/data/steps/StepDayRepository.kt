@@ -29,11 +29,16 @@ class StepDayRepository @Inject constructor(
         dao.upsert(StepDayEntity(date.toEpochDay(), steps, source, clock.millis()))
     }
 
-    /** Health Connect가 읽은 값은 출처가 달라도 덮어쓴다. 센서 값은 더 클 때만 남긴다. */
+    /**
+     * Health Connect 값은 출처가 달라도 덮어쓰고, 줄어도 따른다(워치 동기화 뒤 겹친 걸음이 빠질 수 있다).
+     * 센서 값은 더 클 때만 남긴다.
+     */
     suspend fun merge(date: LocalDate, steps: Int, source: String) {
         if (steps <= 0) return
         val existing = dao.byDay(date.toEpochDay())
-        if (existing == null || existing.source != source || steps > existing.steps) save(date, steps, source)
+        val replace = existing == null || existing.source != source ||
+            if (source == StepsRepository.SOURCE_HEALTH) steps != existing.steps else steps > existing.steps
+        if (replace) save(date, steps, source)
     }
 
     suspend fun clear() = dao.clear()
