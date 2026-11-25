@@ -54,4 +54,20 @@ class StepsMathTest {
         assertEquals(today.minusDays(6), days.first().first)
         assertEquals(null, days.first().second)
     }
+
+    @Test
+    fun `fallback counts only the busiest app per day`() {
+        val day = LocalDate.of(2026, 11, 24)
+        val next = day.plusDays(1)
+        val entries = listOf(
+            StepsMath.Entry("com.sec.android.app.shealth", day, 4_000),
+            StepsMath.Entry("com.sec.android.app.shealth", day, 3_000),
+            StepsMath.Entry("com.google.android.apps.fitness", day, 6_500),
+            StepsMath.Entry("com.google.android.apps.fitness", next, 900),
+            StepsMath.Entry("com.sec.android.app.shealth", next, 0),
+        )
+
+        assertEquals(mapOf(day to 7_000, next to 900), StepsMath.busiestOrigin(entries))
+        assertEquals(emptyMap<LocalDate, Int>(), StepsMath.busiestOrigin(emptyList()))
+    }
 }

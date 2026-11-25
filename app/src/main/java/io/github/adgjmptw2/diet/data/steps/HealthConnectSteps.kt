@@ -1,13 +1,16 @@
 package io.github.adgjmptw2.diet.data.steps
 
 import android.content.Context
+import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
+import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.Period
 import java.time.ZoneId
 import javax.inject.Inject
@@ -38,26 +41,50 @@ class HealthConnectSteps @Inject constructor(@ApplicationContext private val con
         client: HealthConnectClient,
         from: LocalDate,
         to: LocalDate,
-        zone: ZoneId = ZoneId.systemDefault(),
     ): Map<LocalDate, Int>? = runCatching {
         if (!hasPermission(client)) return null
-        val start = from.atStartOfDay(zone).toInstant()
-        val endExclusive = to.plusDays(1).atStartOfDay(zone).toInstant()
+        // 날(Period)로 나눌 때는 현지 시각(LocalDateTime) 범위만 받는다. Instant 범위면 요청을 만들 때 바로 예외가 난다.
         val response = client.aggregateGroupByPeriod(
             AggregateGroupByPeriodRequest(
                 metrics = setOf(StepsRecord.COUNT_TOTAL),
-                timeRangeFilter = TimeRangeFilter.between(start, endExclusive),
+                timeRangeFilter = TimeRangeFilter.between(from.atStartOfDay(), to.plusDays(1).atStartOfDay()),
                 timeRangeSlicer = Period.ofDays(1),
             )
         )
         val result = mutableMapOf<LocalDate, Int>()
         response.forEach { row ->
-            val day = row.startTime.atZone(zone).toLocalDate()
+            val day = row.startTime.toLocalDate()
             val steps = row.result[StepsRecord.COUNT_TOTAL]?.toInt() ?: 0
             if (steps > 0) result[day] = steps
         }
+        if (result.isEmpty()) {
+            result.putAll(byOrigin(client, from, to))
+            if (result.isNotEmpty()) Log.i(TAG, "합계가 비어 기록을 직접 셌어요(우선순위 목록에 걸음 앱 없음)")
+        }
         result
-    }.getOrNull()
+    }.onFailure { Log.w(TAG, "걸음 읽기 실패", it) }.getOrNull()
+
+    /**
+     * 걸음 앱이 Health Connect 우선순위 목록에 없으면 합계가 비어 나온다(기록은 있어도).
+     * 그때만 기록을 직접 읽어 날마다 앱 하나만 센다.
+     */
+    private suspend fun byOrigin(client: HealthConnectClient, from: LocalDate, to: LocalDate): Map<LocalDate, Int> {
+        val filter = TimeRangeFilter.between(from.atStartOfDay(), to.plusDays(1).atStartOfDay())
+        val zone = ZoneId.systemDefault()
+        val entries = mutableListOf<StepsMath.Entry>()
+        var token: String? = null
+        var pages = 0
+        do {
+            val page = client.readRecords(ReadRecordsRequest(StepsRecord::class, filter, pageSize = 5000, pageToken = token))
+            page.records.forEach { r ->
+                val date = LocalDateTime.ofInstant(r.startTime, r.startZoneOffset ?: zone).toLocalDate()
+                entries += StepsMath.Entry(r.metadata.dataOrigin.packageName, date, r.count)
+            }
+            token = page.pageToken
+            pages++
+        } while (token != null && pages < MAX_PAGES)
+        return StepsMath.busiestOrigin(entries)
+    }
 
     suspend fun read(client: HealthConnectClient, from: LocalDate, to: LocalDate): Map<LocalDate, Int> =
         daily(client, from, to) ?: emptyMap()
@@ -65,5 +92,7 @@ class HealthConnectSteps @Inject constructor(@ApplicationContext private val con
     companion object {
         const val PROVIDER = "com.google.android.apps.healthdata"
         const val LOOKBACK_DAYS = 30L
+        private const val TAG = "HealthConnectSteps"
+        private const val MAX_PAGES = 20
     }
 }

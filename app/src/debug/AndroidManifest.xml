@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 디버그 빌드만: 기기 시험(HealthConnectStepsTest)이 Health Connect에 시험용 걸음을 넣고 지운다. 릴리스에는 없다. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
+</manifest>

@@ -30,4 +30,19 @@ object StepsMath {
             val date = today.minusDays(dayCount - 1 - offset)
             date to values[date]
         }
+
+    /** Health Connect 기록 한 건: 어느 앱이, 어느 날, 몇 걸음 */
+    data class Entry(val origin: String, val date: LocalDate, val steps: Long)
+
+    /**
+     * 합계가 비었을 때 쓰는 대체 계산. 날마다 앱별로 더한 뒤 가장 많은 앱 하나만 쓴다.
+     * 앱끼리 더하면 폰·워치·삼성 헬스가 같은 걸음을 두세 번 센다.
+     */
+    fun busiestOrigin(entries: List<Entry>): Map<LocalDate, Int> =
+        entries.filter { it.steps > 0 }
+            .groupBy { it.date }
+            .mapValues { (_, day) ->
+                day.groupBy { it.origin }.values.maxOf { rows -> rows.sumOf { it.steps } }
+                    .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            }
 }
