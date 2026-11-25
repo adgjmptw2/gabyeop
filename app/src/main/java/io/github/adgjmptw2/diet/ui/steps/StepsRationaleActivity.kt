@@ -29,7 +29,7 @@ class StepsRationaleActivity : ComponentActivity() {
                     ) {
                         Text("걸음 수", style = MaterialTheme.typography.headlineSmall)
                         Text(
-                            "걸음 수는 이 폰에만 저장하고 어디에도 보내지 않아요",
+                            "걸음 수는 이 기기에만 저장하고 어디에도 보내지 않아요",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

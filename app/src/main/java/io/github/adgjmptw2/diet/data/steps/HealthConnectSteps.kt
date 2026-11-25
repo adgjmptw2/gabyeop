@@ -86,9 +86,6 @@ class HealthConnectSteps @Inject constructor(@ApplicationContext private val con
         return StepsMath.busiestOrigin(entries)
     }
 
-    suspend fun read(client: HealthConnectClient, from: LocalDate, to: LocalDate): Map<LocalDate, Int> =
-        daily(client, from, to) ?: emptyMap()
-
     companion object {
         const val PROVIDER = "com.google.android.apps.healthdata"
         const val LOOKBACK_DAYS = 30L

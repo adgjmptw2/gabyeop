@@ -72,8 +72,10 @@ class StepCounterReader @Inject constructor(@ApplicationContext private val cont
         // 날짜가 바뀐 뒤 처음 읽은 차이는 오늘로 센다(밤새 작업이 미뤄지면 아침 걸음이 어제로 가는 것을 막음)
         val target = today
         val existing = repository.range(target, target).firstOrNull()
-        // Health Connect로 읽은 날에는 센서 차이를 더하지 않는다. 출처가 섞이면 수치가 부풀어 오른다.
+        // Health Connect에서 센서로 바뀐 날: 그때까지 걸음은 Health Connect 값에 들어 있으니 이번 차이는 버리고
+        // 그 값을 센서 출처로 넘겨받아 다음부터 이어 센다. 버리지 않으면 같은 걸음을 두 번 센다.
         if (existing != null && existing.source != SOURCE) {
+            repository.save(target, existing.steps, SOURCE)
             store.setSensorBaseline(SensorBaseline(total, today.toEpochDay()))
             return
         }

@@ -165,7 +165,7 @@ private fun MonthGrid(month: YearMonth, s: RecordsUiState, calories: Map<LocalDa
                 row.forEach { index ->
                     val number = index - offset + 1
                     val date = if (number in 1..month.lengthOfMonth()) month.atDay(number) else null
-                    if (date == null) Box(Modifier.weight(1f).height(68.dp))
+                    if (date == null) Box(Modifier.weight(1f).heightIn(min = 68.dp))
                     else {
                         val weight = s.days[date]?.weightKg
                         val enabled = date <= s.today
@@ -174,7 +174,7 @@ private fun MonthGrid(month: YearMonth, s: RecordsUiState, calories: Map<LocalDa
                         val note = s.notes[date]
                         val hasNote = note?.hasTextNotes == true
                         val kcal = calories[date]
-                        Column(Modifier.weight(1f).height(68.dp).clip(MaterialTheme.shapes.small)
+                        Column(Modifier.weight(1f).heightIn(min = 68.dp).clip(MaterialTheme.shapes.small)
                             .then(if (date == s.today) Modifier.background(colors.primaryContainer) else Modifier)
                             .clickable(enabled = enabled) { onDay(date) }
                             .padding(vertical = 4.dp).semantics(mergeDescendants = true) {
@@ -242,7 +242,7 @@ private fun CalendarCalories(kcal: Double?, targetKcal: Int) {
 
 @Composable
 private fun CalendarCaloriesLegend() {
-    Text("작은 숫자: 먹은 kcal", style = MaterialTheme.typography.labelSmall,
+    Text("위 숫자는 체중(kg), 아래는 먹은 kcal", style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

@@ -162,6 +162,11 @@ fun SettingsScreen(
                             } else vm.setReminderEnabled(enabled)
                         })
                     }
+                    SettingsRow("기록 알림 시간", String.format(Locale.KOREA, "%02d:%02d", state.reminder.hour, state.reminder.minute),
+                        enabled = !state.busy && state.reminder.enabled) {
+                        TimePickerDialog(context, { _, hour, minute -> vm.setReminderTime(hour, minute) },
+                            state.reminder.hour, state.reminder.minute, DateFormat.is24HourFormat(context)).show()
+                    }
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("영양제 아침·점심·저녁 나누기", style = MaterialTheme.typography.bodyLarge)
@@ -171,12 +176,7 @@ fun SettingsScreen(
                         Switch(checked = state.splitSupplementsByTime, enabled = !state.busy,
                             onCheckedChange = vm::setSplitSupplementsByTime)
                     }
-                    SettingsRow("알림 시간", String.format(Locale.KOREA, "%02d:%02d", state.reminder.hour, state.reminder.minute),
-                        enabled = !state.busy) {
-                        TimePickerDialog(context, { _, hour, minute -> vm.setReminderTime(hour, minute) },
-                            state.reminder.hour, state.reminder.minute, DateFormat.is24HourFormat(context)).show()
-                    }
-                    SettingsRow("데이터 내보내기", "체중·식단·메모·단식·영양제 CSV", !state.busy, onClick = vm::export)
+                    SettingsRow("기록 내보내기", "체중·식단·메모·단식·영양제 CSV", !state.busy, onClick = vm::export)
                     SettingsRow("이 기기 기록 지우기", enabled = !state.busy, destructive = true) {
                         dialog = AccountDialog.CLEAR_DEVICE
                     }
@@ -239,7 +239,7 @@ fun SettingsScreen(
             onSave = { vm.setMacroGoals(it); dialog = null })
         AccountDialog.LINK -> AlertDialog(onDismissRequest = { dialog = null },
             title = { Text("Google 계정 연결") },
-            text = { Text("연결하면 이 기기의 체중과 식단 기록을 서버에 저장해요. 사진은 이 기기에 남아요") },
+            text = { Text("연결하면 체중·식단·메모·물·단식 기록을 서버에 저장해요. 사진은 이 기기에만 남아요") },
             confirmButton = { TextButton(onClick = { dialog = null; vm.signIn(context) }) { Text("연결") } },
             dismissButton = { TextButton(onClick = { dialog = null }) { Text("취소") } })
         AccountDialog.LOGOUT -> AlertDialog(onDismissRequest = { dialog = null },

@@ -53,6 +53,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import io.github.adgjmptw2.diet.data.steps.HealthConnectSteps
 import io.github.adgjmptw2.diet.R
@@ -102,7 +103,11 @@ fun StepsScreen(modifier: Modifier = Modifier) {
             item { RangeRow(state.range, vm::setRange) }
             item { WeekBars(state) }
             item { Summary(state) }
-            item { SourceLine(state, onSettings = { openAppSettings(context) }) }
+            item {
+                SourceLine(state, onSettings = {
+                    if (state.source == StepsAvailability.HEALTH_CONNECT) openHealthConnect(context) else openAppSettings(context)
+                })
+            }
         }
         state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
     }
@@ -136,6 +141,13 @@ private fun requestSensorOrSettings(vm: StepsViewModel, launcher: ActivityResult
     }
 }
 
+/** Health Connect 설정(앱 권한에서 삼성 헬스 등의 걸음 쓰기를 켠다). 못 열면 앱 설정. */
+private fun openHealthConnect(context: Context) {
+    runCatching {
+        context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure { openAppSettings(context) }
+}
+
 private fun openAppSettings(context: Context) {
     runCatching {
         context.startActivity(
@@ -162,7 +174,7 @@ private fun StepsConnectCard(
         ) {
             Text("걸음 수", style = MaterialTheme.typography.headlineSmall)
             Text(
-                "걸음 수는 이 폰에만 저장해요. Health Connect의 걸음을 읽거나, 없으면 폰 센서로 세요.",
+                "걸음 수는 이 기기에만 저장해요. Health Connect의 걸음을 읽거나, 없으면 기기 센서로 세요.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -306,8 +318,11 @@ private fun SourceLine(state: StepsUiState, onSettings: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             when (state.source) {
-                StepsAvailability.HEALTH_CONNECT -> "Health Connect에서 가져와요"
-                StepsAvailability.SENSOR -> "폰 걸음 센서로 세요"
+                // 권한은 있는데 기록이 하나도 없으면 걸음 앱이 Health Connect에 쓰지 않는 것(갤럭시는 대개 삼성 헬스 연결이 꺼짐)
+                StepsAvailability.HEALTH_CONNECT -> if (state.days.any { (it.steps ?: 0) > 0 }) "Health Connect에서 가져와요"
+                    else if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) "Health Connect에 걸음 기록이 없어요. 삼성 헬스에서 Health Connect 연결을 켜 주세요"
+                    else "Health Connect에 걸음 기록이 없어요. 걸음 앱에서 Health Connect 연결을 켜 주세요"
+                StepsAvailability.SENSOR -> "기기 걸음 센서로 세요"
                 StepsAvailability.NONE -> "권한을 켜면 걸음 수를 볼 수 있어요"
             },
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -317,7 +332,7 @@ private fun SourceLine(state: StepsUiState, onSettings: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         TextButton(onClick = onSettings, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            Text("앱 설정 열기")
+            Text(if (state.source == StepsAvailability.HEALTH_CONNECT) "Health Connect 열기" else "앱 설정 열기")
         }
     }
 }

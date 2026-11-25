@@ -122,7 +122,7 @@ class SupplementRepository @Inject constructor(
 
     /**
      * 통합 모드의 영양제 한 개 토글.
-     * 모든 때가 체크돼 있으면 그날 그 영양제 기록을 모두 지우고, 아니면 빠진 때를 채운다.
+     * 한 때라도 체크돼 있으면 그날 그 영양제 기록을 모두 지우고, 아니면 모든 때를 채운다.
      */
     suspend fun toggleAll(date: LocalDate, id: String) = db.withTransaction {
         val row = dao.byId(id)?.takeUnless { it.deleted } ?: return@withTransaction

@@ -72,7 +72,7 @@ class TrackingViewModel @Inject constructor(
     fun changeStartAt(startAt: Long) = action {
         if (fasting.value.active == null) return@action
         if (!io.github.adgjmptw2.diet.domain.Fasting.validStart(startAt, clock.millis())) {
-            error.value = "시작 시각은 지금부터 7일 전 사이로 골라 주세요"; return@action
+            error.value = "시작 시각은 7일 안으로 골라 주세요"; return@action
         }
         fasts.changeStart(startAt)
     }
@@ -95,17 +95,8 @@ class TrackingViewModel @Inject constructor(
     fun now(): Long = clock.millis()
     fun zone() = clock.zone
     fun notificationDenied() { error.value = "알림 권한이 꺼져 있어요" }
-    fun changeStart(dayOffset: Long, hour: Int, minute: Int) = action {
-        val active = fasting.value.active ?: return@action
-        val date = Instant.ofEpochMilli(active.startAt).atZone(clock.zone).toLocalDate().plusDays(dayOffset)
-        val selected = date.atTime(hour, minute).atZone(clock.zone).toInstant().toEpochMilli()
-        if (selected > clock.millis()) { error.value = "시작 시각은 지금 이전으로 골라 주세요"; return@action }
-        if (clock.millis() - selected > io.github.adgjmptw2.diet.domain.Fasting.MAX_DURATION_MS) {
-            error.value = "시작 시각은 7일 이내로 골라 주세요"
-            return@action
-        }
-        fasts.changeStart(selected)
-    }
+    /** 화면이 오류를 보여 주기 시작하면 비운다. 남겨 두면 탭을 다시 열 때마다 또 뜬다. */
+    fun clearError() { error.value = null }
     private fun action(onFailure: (String) -> Unit = { error.value = it }, block: suspend () -> Unit) {
         viewModelScope.launch {
             writes.withLock {

@@ -92,7 +92,7 @@ fun WelcomeScreen(vm: WelcomeViewModel = hiltViewModel()) {
     ) {
         ThemeDecoration(kind = DecorationKind.SIT)
         Text("가볍게", style = MaterialTheme.typography.displaySmall)
-        Text("체중과 식단을 기록하는 일상", style = MaterialTheme.typography.bodyLarge,
+        Text("체중과 식단 기록", style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Button(onClick = vm::guest, enabled = !vm.busy,
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp).heightIn(min = 56.dp)) {

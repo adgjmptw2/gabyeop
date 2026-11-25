@@ -112,30 +112,39 @@ class SupplementsTest {
     }
 
     @Test
-    fun `나누기 끔 카운트는 모든 때를 채운 영양제 수다`() {
+    fun `나누기 끔 카운트는 한 때라도 체크한 영양제 수다`() {
         val supplements = listOf(
             supplement("a", 3),
             supplement("b", 1),
             supplement("c", 7),
+            supplement("d", 2),
         )
         val checks = setOf(
             SupplementCheck("a", 1),
             SupplementCheck("a", 2),
             SupplementCheck("b", 1),
-            SupplementCheck("c", 1),
             SupplementCheck("c", 4),
         )
 
-        assertEquals(SupplementProgress(2, 3), supplementProgress(supplements, checks, splitByTime = false))
+        assertEquals(SupplementProgress(3, 4), supplementProgress(supplements, checks, splitByTime = false))
     }
 
     @Test
-    fun `통합 토글은 빠진 때를 모두 채운다`() {
+    fun `통합 토글은 아무 때도 체크 안 됐으면 모든 때를 채운다`() {
+        val supplement = supplement("a", 5)
+        val plan = supplementToggleAllPlan(supplement, emptySet())
+
+        assertEquals(setOf(1, 4), plan.slotsToAdd)
+        assertFalse(plan.removeAll)
+    }
+
+    @Test
+    fun `통합 토글은 한 때만 체크돼 있어도 먹은 것으로 보고 지운다`() {
         val supplement = supplement("a", 5)
         val plan = supplementToggleAllPlan(supplement, setOf(SupplementCheck("a", 4)))
 
-        assertEquals(setOf(1), plan.slotsToAdd)
-        assertFalse(plan.removeAll)
+        assertTrue(plan.slotsToAdd.isEmpty())
+        assertTrue(plan.removeAll)
     }
 
     @Test

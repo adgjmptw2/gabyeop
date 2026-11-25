@@ -118,7 +118,7 @@ fun SupplementSheet(vm: SupplementViewModel, onDismiss: () -> Unit) {
                 Text("등록한 영양제가 없어요", Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false),
                     contentPadding = PaddingValues(vertical = 4.dp)) {
                     itemsIndexed(state.supplements, key = { _, supplement -> supplement.id }) { index, supplement ->
                         if (renamingId == supplement.id) {
@@ -131,7 +131,7 @@ fun SupplementSheet(vm: SupplementViewModel, onDismiss: () -> Unit) {
                                     renameText = truncateToCodePoints(raw, SUPPLEMENT_NAME_MAX)
                                 }, modifier = Modifier.fillMaxWidth(), label = { Text("이름") }, singleLine = true,
                                     isError = duplicate,
-                                    supportingText = { if (duplicate) Text("같은 이름이 있어요") },
+                                    supportingText = { if (duplicate) Text("같은 이름의 영양제가 있어요") },
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                                     keyboardActions = KeyboardActions(onDone = { saveRename(supplement.id) }))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -213,7 +213,7 @@ fun SupplementSheet(vm: SupplementViewModel, onDismiss: () -> Unit) {
                 OutlinedTextField(adding, { raw -> adding = truncateToCodePoints(raw, SUPPLEMENT_NAME_MAX) },
                     modifier = Modifier.weight(1f), placeholder = { Text("예: 비타민D") }, singleLine = true,
                     isError = duplicate,
-                    supportingText = { if (duplicate) Text("같은 이름이 있어요") },
+                    supportingText = { if (duplicate) Text("같은 이름의 영양제가 있어요") },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { addCurrent() }))
                 TextButton(onClick = { addCurrent() },

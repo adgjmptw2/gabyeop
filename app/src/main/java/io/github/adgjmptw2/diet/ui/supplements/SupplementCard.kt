@@ -1,6 +1,5 @@
 package io.github.adgjmptw2.diet.ui.supplements
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -16,8 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -47,6 +44,7 @@ import io.github.adgjmptw2.diet.domain.SUPPLEMENT_SLOT_ORDER
 import io.github.adgjmptw2.diet.domain.Supplement
 import io.github.adgjmptw2.diet.domain.SupplementCheck
 import io.github.adgjmptw2.diet.domain.supplementProgress
+import io.github.adgjmptw2.diet.domain.supplementTakenAny
 import io.github.adgjmptw2.diet.domain.supplementSlotFlags
 import io.github.adgjmptw2.diet.domain.supplementSlotLabel
 import io.github.adgjmptw2.diet.ui.theme.tabularNumbers
@@ -75,7 +73,7 @@ fun SupplementCard(
                 Text("영양제", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                 if (state.total > 0) {
                     val progress = supplementProgress(state.supplements, checks, state.splitByTime)
-                    Text("${progress.done}/${progress.total}",
+                    Text("${progress.done}/${progress.total}${if (state.splitByTime) "회" else "개"}",
                         style = MaterialTheme.typography.labelMedium.tabularNumbers(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(onClick = { editing = true }, contentPadding = PaddingValues(horizontal = 8.dp),
@@ -117,8 +115,7 @@ private fun SplitSupplementChips(
     checks: Set<SupplementCheck>,
     onToggle: (Supplement, Int) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SUPPLEMENT_SLOT_ORDER.forEach { slot ->
             val inSlot = supplements.filter { (it.slots and slot) != 0 }
             if (inSlot.isNotEmpty()) {
@@ -146,7 +143,7 @@ private fun SplitSupplementChips(
     }
 }
 
-/** 나누기 끔: 영양제마다 칩 하나. 모든 때를 채웠을 때만 선택으로 보인다. */
+/** 나누기 끔: 영양제마다 칩 하나. 한 때라도 체크돼 있으면 먹은 것으로 보인다(나누기 켬에서 일부만 체크한 날 포함). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CombinedSupplementChips(
@@ -155,13 +152,10 @@ private fun CombinedSupplementChips(
     onToggle: (Supplement) -> Unit,
 ) {
     var expanded by rememberSaveable(supplements.map { it.id }) { mutableStateOf(false) }
-    val allChecked = { supplement: Supplement ->
-        val flags = supplementSlotFlags(supplement.slots)
-        flags.isNotEmpty() && flags.all { SupplementCheck(supplement.id, it) in checks }
-    }
+    val allChecked = { supplement: Supplement -> supplementTakenAny(supplement, checks) }
     if (expanded) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
             supplements.forEach { supplement ->
                 SupplementChip(supplement.name, allChecked(supplement), slotLabel = null) { onToggle(supplement) }
             }

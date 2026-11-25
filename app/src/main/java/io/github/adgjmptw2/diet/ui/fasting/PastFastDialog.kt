@@ -43,7 +43,7 @@ internal fun PastFastDialog(
     val timesChanged = startAt != fast.startAt || endAt != fast.endAt
     val validation = Fasting.pastError(fast.id, startAt, endAt, hours, if (timesChanged) others else emptyList(), now)?.message
     val duration = Fasting.elapsedMillis(startAt, now, endAt)
-    val preview = "길이 " + Fasting.durationText(duration) + if (duration >= hours * Fasting.HOUR_MS) " · 목표 달성" else ""
+    val preview = "단식 " + Fasting.durationText(duration) + if (duration >= hours * Fasting.HOUR_MS) " · 목표 달성" else ""
     val result: (String?) -> Unit = { message ->
         working = false
         saveError = message
@@ -55,10 +55,10 @@ internal fun PastFastDialog(
             color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("단식 기록", style = MaterialTheme.typography.headlineSmall)
+                Text("단식 수정", style = MaterialTheme.typography.headlineSmall)
                 PastTimeRow("시작", startAt, zone, !working) { editingTime = PastTimeField.START }
                 PastTimeRow("끝", endAt, zone, !working) { editingTime = PastTimeField.END }
-                Text(preview, style = MaterialTheme.typography.bodyMedium.tabularNumbers())
+                Text(preview, Modifier.padding(vertical = 4.dp), style = MaterialTheme.typography.bodyMedium.tabularNumbers())
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     .clickable(enabled = !working, role = Role.Button, onClickLabel = "목표 시간 수정") { editingGoal = true },
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -107,10 +107,11 @@ internal fun PastFastDialog(
 
 @Composable
 private fun PastTimeRow(label: String, at: Long, zone: ZoneId, enabled: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp)
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
         .clickable(enabled = enabled, role = Role.Button, onClickLabel = "$label 시각 수정", onClick = onClick),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, Modifier.width(36.dp), style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(Instant.ofEpochMilli(at).atZone(zone).format(pastTimeLabel), Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium.tabularNumbers())
         Icon(painterResource(R.drawable.ic_edit), null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
